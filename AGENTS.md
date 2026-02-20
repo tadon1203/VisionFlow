@@ -1,0 +1,100 @@
+# AGENTS
+
+## Scope
+- This is the global agent policy for the entire repository.
+- Apply these rules unless a user instruction explicitly overrides them.
+
+## Communication Policy
+- Respond to the user in Japanese.
+- Write and edit repository files in English unless the user explicitly requests another language.
+
+## Quick Commands
+- Configure: `cmake -S . -B build`
+- Build: `cmake --build build`
+- Reconfigure and build: `cmake -S . -B build && cmake --build build`
+- Run binary (Windows build output): `./build/VisionFlow.exe`
+
+## Project Structure
+- `include/`: Public headers and interface contracts.
+- `src/`: Implementations.
+- `third_party/`: External dependencies; do not modify unless explicitly requested.
+- `build/`: Generated artifacts only.
+
+## Boundaries
+### Always Do
+- Read `.clang-format` and `.clang-tidy` before code changes.
+- Keep changes scoped to the user request.
+- Preserve existing architecture boundaries and interfaces when possible.
+- Add logs for critical state transitions and failures in runtime-critical paths.
+
+### Ask First
+- Large refactors that change file/module boundaries.
+- API changes that affect call sites outside the current task.
+- Dependency upgrades, protocol changes, or behavior changes with operational risk.
+
+### Never Do
+- Edit generated files under `build/` as part of source changes.
+- Modify `third_party/` code unless the user explicitly asks.
+- Run destructive git operations (`reset --hard`, history rewrite) without explicit approval.
+- Introduce secrets, tokens, or environment-specific credentials into source files.
+
+## Validation Requirements
+- Code changes: build the project (`cmake --build build`) and report results.
+- Interface changes: verify all impacted call sites compile.
+- Runtime path changes: validate startup/shutdown and error-path behavior.
+- Build/config changes: rerun configure + build.
+- If validation cannot be executed, clearly state what was not run and why.
+
+## Git Workflow
+- Keep one logical change per commit scope.
+- Do not revert unrelated user changes.
+- Minimize diff size; avoid drive-by edits.
+- Keep commit-ready code deterministic and reviewable.
+
+## Commit Message Convention
+- Follow **Conventional Commits** for all commits.
+- Required header format: `<type>[optional scope][optional !]: <description>`
+- Use lowercase `type` and concise imperative descriptions.
+- `type` values:
+  - `feat`: new feature
+  - `fix`: bug fix
+  - `build`, `chore`, `ci`, `docs`, `style`, `refactor`, `perf`, `test`, `revert`: allowed and recommended when applicable
+- `scope` is optional and should be a noun in parentheses (for example `fix(serial): ...`).
+- Breaking changes:
+  - Use `!` before `:`, and/or
+  - Add footer `BREAKING CHANGE: <description>` (uppercase token required).
+- Body is optional and must start after one blank line from the header.
+- Footers are optional and must start after one blank line from body (or header if no body).
+- Prefer splitting mixed-purpose changes into multiple commits instead of using one ambiguous type.
+
+## Coding Guidelines
+
+### 1. Architectural Integrity
+- **SOLID**: Maintain focused responsibilities. Prefer clear abstractions (interfaces/abstract classes) so modules can evolve without cascading edits.
+- **Composition over Inheritance**: Favor assembling behavior from small, decoupled components.
+- **DRY (Don't Repeat Yourself)**: Keep each piece of logic in one authoritative place.
+- **Platform Boundary Isolation**: Isolate platform-specific dependencies behind explicit boundaries. Keep upper layers dependent on abstractions, not direct OS/API calls.
+
+### 2. Resource, Performance, and Constants
+- **RAII (Resource Acquisition Is Initialization)**: Bind resource lifecycles (memory, mutexes, handles) to object lifetimes.
+- **Value Semantics**: Prefer value/reference semantics where practical.
+- **Hot Path Allocation Rule**: Avoid unnecessary dynamic allocation in hot paths. Reuse buffers and keep per-iteration overhead predictable.
+- **Magic Number Rule (`constexpr`)**: Replace magic numbers with named `constexpr` constants.
+
+### 3. Simplicity & Pragmatism
+- **KISS (Keep It Simple, Stupid)**: In this project, "simple" means code that a reader can understand correctly in the shortest time. Choose the design with the clearest intent and no unnecessary structural elements.
+- **YAGNI (You Aren't Gonna Need It)**: Do not add hypothetical extension points.
+- **Zero-Overhead Principle**: Do not pay runtime cost for unused abstractions.
+
+### 4. Safety & Robustness
+- **Interface Safety**: Make APIs easy to use correctly and hard to misuse.
+- **State Machine Discipline**: Manage mutable state with explicit `enum class` state models and validated transitions.
+- **Thread Ownership & Shutdown Rule**: Assign each thread a single owner and enforce explicit shutdown sequencing (`request stop -> wake -> join`).
+- **Principle of Least Astonishment**: Keep behavior intuitive and consistent.
+- **Const Correctness**: Use `const` by default where possible.
+
+### 5. Naming Guidelines
+- **Variable Naming**: Use nouns in `camelBack`.
+- **Boolean Exception (Formal)**: Boolean variables are a formal exception to noun-only naming. State words in `camelBack` (for example `empty`, `connected`, `pending`) are allowed; avoid `is`/`has` prefixes when context is clear.
+- **Function Naming Rules**: Use descriptive verb phrases in `lowerCamelCase`. Prefer imperative or direct action-oriented forms.
+- **Exceptions**: Small-scope counters and iterators (for example `i`, `j`) are permitted.
