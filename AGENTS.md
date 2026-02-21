@@ -14,6 +14,8 @@
 - Build + test (Release): `python.exe build.py --config Release`
 - Build + test (RelWithDebInfo): `python.exe build.py --config RelWithDebInfo`
 - Build only (skip tests): `python.exe build.py --no-test`
+- Lint (all, default Debug DB): `python.exe scripts/run-clang-tidy.py --all`
+- Lint (diff, default Debug DB): `git diff --cached | python.exe scripts/run-clang-tidy.py --diff`
 - Run binary (Windows preset output): `./build/RelWithDebInfo/VisionFlow.exe`
 
 ## Project Structure
@@ -82,6 +84,14 @@
 - Use lowercase and kebab-case for `short-description`.
 - Keep `short-description` concise and descriptive.
 - Allowed prefixes: `docs/`, `chore/`, `feat/`, `fix/`, `refactor/`, `perf/`, `build/`, `test/`, `ci/`.
+
+### Pull Request Policy
+- PR descriptions MUST use `.github/PULL_REQUEST_TEMPLATE.md`.
+- `Summary` MUST describe intent and scope of the change concisely.
+- `Validation Results` MUST be updated based on actual execution.
+- If a validation item is not executed, include a short reason in the PR description.
+- For `--diff` validators, pass diff input via stdin (for example `git diff --cached | ...`).
+- PR titles MUST follow Conventional Commits (same rule as squash commit titles).
 
 ### Prefix Policy Matrix
 | Prefix | Direct `main` Commit | Branch Usage | Purpose |

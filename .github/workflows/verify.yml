@@ -1,0 +1,70 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  format:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install LLVM and Ninja
+        run: choco install llvm ninja -y
+
+      - name: Add LLVM to PATH
+        run: echo "C:\\Program Files\\LLVM\\bin" >> "$GITHUB_PATH"
+
+      - name: Run clang-format check
+        run: python.exe scripts/run-clang-format.py --all --check
+
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install LLVM and Ninja
+        run: choco install llvm ninja -y
+
+      - name: Add LLVM to PATH
+        run: echo "C:\\Program Files\\LLVM\\bin" >> "$GITHUB_PATH"
+
+      - name: Build and test
+        run: python.exe build.py --config RelWithDebInfo --test
+
+  lint:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install LLVM and Ninja
+        run: choco install llvm ninja -y
+
+      - name: Add LLVM to PATH
+        run: echo "C:\\Program Files\\LLVM\\bin" >> "$GITHUB_PATH"
+
+      - name: Run clang-tidy
+        run: python.exe scripts/run-clang-tidy.py --all --config RelWithDebInfo

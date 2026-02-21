@@ -7,7 +7,7 @@
 
 #include "VisionFlow/input/mouse_error.hpp"
 
-#if defined(_WIN32)
+#ifdef _WIN32
 // clang-format off
 #include <Windows.h>
 #include <SetupAPI.h>
@@ -19,16 +19,17 @@ namespace vf {
 namespace {
 
 std::string toUpper(std::string text) {
-    std::transform(text.begin(), text.end(), text.begin(),
-                   [](unsigned char value) { return static_cast<char>(std::toupper(value)); });
+    std::ranges::transform(text, text.begin(), [](unsigned char value) {
+        return static_cast<char>(std::toupper(value));
+    });
     return text;
 }
 
 } // namespace
 
-std::expected<std::string, std::error_code> Win32DeviceScanner::findPortByHardwareId(
-    const std::string& hardwareId) const {
-#if !defined(_WIN32)
+std::expected<std::string, std::error_code>
+Win32DeviceScanner::findPortByHardwareId(const std::string& hardwareId) const {
+#ifndef _WIN32
     static_cast<void>(hardwareId);
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
 #else
@@ -43,8 +44,7 @@ std::expected<std::string, std::error_code> Win32DeviceScanner::findPortByHardwa
     SP_DEVINFO_DATA deviceData{};
     deviceData.cbSize = sizeof(SP_DEVINFO_DATA);
 
-    for (DWORD index = 0; SetupDiEnumDeviceInfo(deviceInfo, index, &deviceData) != FALSE;
-         ++index) {
+    for (DWORD index = 0; SetupDiEnumDeviceInfo(deviceInfo, index, &deviceData) != FALSE; ++index) {
         std::array<char, 4096> hardwareIdBuffer{};
         DWORD requiredSize = 0;
         const BOOL hardwareIdFound = SetupDiGetDeviceRegistryPropertyA(
@@ -56,7 +56,7 @@ std::expected<std::string, std::error_code> Win32DeviceScanner::findPortByHardwa
         }
 
         const std::string deviceHardwareId = toUpper(std::string(hardwareIdBuffer.data()));
-        if (deviceHardwareId.find(target) == std::string::npos) {
+        if (!deviceHardwareId.contains(target)) {
             continue;
         }
 

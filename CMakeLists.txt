@@ -5,6 +5,9 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(kCompileCommandsMirrorDir "${CMAKE_SOURCE_DIR}/build")
+file(MAKE_DIRECTORY "${kCompileCommandsMirrorDir}")
+
 include(FetchContent)
 include(CTest)
 
@@ -31,6 +34,13 @@ file(GLOB_RECURSE SOURCES
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
+
+add_custom_target(syncCompileCommands ALL
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CMAKE_BINARY_DIR}/compile_commands.json"
+            "${kCompileCommandsMirrorDir}/compile_commands.json"
+    COMMENT "Sync compile_commands.json to ${kCompileCommandsMirrorDir}"
+    VERBATIM)
 
 target_include_directories(${PROJECT_NAME} PRIVATE include)
 

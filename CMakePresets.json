@@ -7,30 +7,54 @@
   },
   "configurePresets": [
     {
-      "name": "default",
-      "displayName": "Default Configure",
-      "generator": "Ninja Multi-Config",
-      "binaryDir": "${sourceDir}/build"
+      "name": "debug-configure",
+      "displayName": "Debug Configure",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
+      "name": "release-configure",
+      "displayName": "Release Configure",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
+      "name": "relwithdebinfo-configure",
+      "displayName": "RelWithDebInfo Configure",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/relwithdebinfo",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
     }
   ],
   "buildPresets": [
     {
       "name": "debug",
       "displayName": "Build Debug",
-      "configurePreset": "default",
-      "configuration": "Debug"
+      "configurePreset": "debug-configure"
     },
     {
       "name": "release",
       "displayName": "Build Release",
-      "configurePreset": "default",
-      "configuration": "Release"
+      "configurePreset": "release-configure"
     },
     {
       "name": "relwithdebinfo",
       "displayName": "Build RelWithDebInfo",
-      "configurePreset": "default",
-      "configuration": "RelWithDebInfo"
+      "configurePreset": "relwithdebinfo-configure"
     }
   ]
 }

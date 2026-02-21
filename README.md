@@ -37,6 +37,22 @@ By default, `build.py` runs both build and tests.
 python.exe build.py --config Debug --test
 ```
 
+## Format
+```bash
+python.exe scripts/run-clang-format.py --all
+git diff --cached | python.exe scripts/run-clang-format.py --diff
+```
+
+## Lint
+```bash
+python.exe scripts/run-clang-tidy.py --all
+python.exe scripts/run-clang-tidy.py --all --config Release
+git diff --cached | python.exe scripts/run-clang-tidy.py --diff
+```
+
+`run-clang-tidy.py` runs `cmake --preset <config>` automatically before analysis and uses
+`build/compile_commands.json`.
+
 ## Run
 ```bash
 ./build/RelWithDebInfo/VisionFlow.exe

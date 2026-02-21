@@ -1,11 +1,11 @@
+#include "VisionFlow/core/app.hpp"
+
 #include <expected>
 #include <memory>
 #include <system_error>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-
-#include "VisionFlow/core/app.hpp"
 
 namespace vf {
 namespace {

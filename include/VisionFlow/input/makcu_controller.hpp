@@ -50,8 +50,7 @@ class MakcuController final : public IMouseController {
 
     [[nodiscard]] std::expected<void, std::error_code> writeText(const std::string& text);
     [[nodiscard]] std::expected<void, std::error_code> runUpgradeHandshake();
-    [[nodiscard]] std::expected<void, std::error_code> sendBaudChangeFrame(
-        std::uint32_t baudRate);
+    [[nodiscard]] std::expected<void, std::error_code> sendBaudChangeFrame(std::uint32_t baudRate);
 
     void senderLoop(const std::stop_token& stopToken);
 

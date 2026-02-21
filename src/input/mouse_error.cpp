@@ -8,9 +8,7 @@ namespace {
 
 class MouseErrorCategory final : public std::error_category {
   public:
-    [[nodiscard]] const char* name() const noexcept override {
-        return "mouse";
-    }
+    [[nodiscard]] const char* name() const noexcept override { return "mouse"; }
 
     [[nodiscard]] std::string message(int value) const override {
         switch (static_cast<MouseError>(value)) {
