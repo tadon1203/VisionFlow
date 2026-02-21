@@ -2,6 +2,8 @@ name: Verify
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 defaults:
@@ -23,6 +25,9 @@ jobs:
       - name: Install LLVM and Ninja
         run: choco install llvm ninja -y
 
+      - name: Install CMake 4.x
+        run: choco upgrade cmake -y
+
       - name: Add LLVM to PATH
         run: echo "C:\\Program Files\\LLVM\\bin" >> "$GITHUB_PATH"
 
@@ -43,6 +48,9 @@ jobs:
       - name: Install LLVM and Ninja
         run: choco install llvm ninja -y
 
+      - name: Install CMake 4.x
+        run: choco upgrade cmake -y
+
       - name: Add LLVM to PATH
         run: echo "C:\\Program Files\\LLVM\\bin" >> "$GITHUB_PATH"
 
@@ -62,6 +70,9 @@ jobs:
 
       - name: Install LLVM and Ninja
         run: choco install llvm ninja -y
+
+      - name: Install CMake 4.x
+        run: choco upgrade cmake -y
 
       - name: Add LLVM to PATH
         run: echo "C:\\Program Files\\LLVM\\bin" >> "$GITHUB_PATH"
