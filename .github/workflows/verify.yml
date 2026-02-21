@@ -1,10 +1,10 @@
 name: Verify
 
 on:
+  pull_request:
   push:
     branches:
       - main
-  pull_request:
 
 defaults:
   run:
@@ -22,19 +22,31 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install LLVM and Ninja
-        run: choco install llvm ninja -y
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: "4.0.0"
 
-      - name: Install CMake 4.x
-        run: choco upgrade cmake -y
+      - name: Ensure LLVM and Ninja
+        run: |
+          if where.exe clang-format > /dev/null 2>&1 && \
+             where.exe clang-tidy > /dev/null 2>&1 && \
+             where.exe ninja > /dev/null 2>&1; then
+            echo "LLVM and Ninja already available"
+          else
+            choco install llvm ninja -y
+          fi
 
       - name: Add LLVM to PATH
-        run: echo "C:\\Program Files\\LLVM\\bin" >> "$GITHUB_PATH"
+        run: |
+          llvm_path="$(where.exe clang-format | head -n 1 | tr -d '\r')"
+          llvm_bin_dir="$(dirname "$llvm_path")"
+          echo "$llvm_bin_dir" >> "$GITHUB_PATH"
 
       - name: Run clang-format check
         run: python.exe scripts/run-clang-format.py --all --check
 
-  build-and-test:
+  build-test-lint:
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -45,37 +57,36 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install LLVM and Ninja
-        run: choco install llvm ninja -y
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: "4.0.0"
 
-      - name: Install CMake 4.x
-        run: choco upgrade cmake -y
+      - name: Ensure LLVM and Ninja
+        run: |
+          if where.exe clang-format > /dev/null 2>&1 && \
+             where.exe clang-tidy > /dev/null 2>&1 && \
+             where.exe ninja > /dev/null 2>&1; then
+            echo "LLVM and Ninja already available"
+          else
+            choco install llvm ninja -y
+          fi
 
       - name: Add LLVM to PATH
-        run: echo "C:\\Program Files\\LLVM\\bin" >> "$GITHUB_PATH"
+        run: |
+          llvm_path="$(where.exe clang-format | head -n 1 | tr -d '\r')"
+          llvm_bin_dir="$(dirname "$llvm_path")"
+          echo "$llvm_bin_dir" >> "$GITHUB_PATH"
 
       - name: Build and test
         run: python.exe build.py --config RelWithDebInfo --test
 
-  lint:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-
-      - name: Install LLVM and Ninja
-        run: choco install llvm ninja -y
-
-      - name: Install CMake 4.x
-        run: choco upgrade cmake -y
-
-      - name: Add LLVM to PATH
-        run: echo "C:\\Program Files\\LLVM\\bin" >> "$GITHUB_PATH"
-
       - name: Run clang-tidy
-        run: python.exe scripts/run-clang-tidy.py --all --config RelWithDebInfo
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+            git diff --unified=0 "origin/${{ github.base_ref }}...HEAD" | \
+              python.exe scripts/run-clang-tidy.py --diff --config RelWithDebInfo
+          else
+            python.exe scripts/run-clang-tidy.py --all --config RelWithDebInfo
+          fi
