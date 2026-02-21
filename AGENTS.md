@@ -52,12 +52,16 @@
 - Minimize diff size; avoid drive-by edits.
 - Keep commit-ready code deterministic and reviewable.
 - Prefer branch-based development unless a change is explicitly allowed for direct `main` commits.
+- For branch-based changes, merge into `main` using **Squash and Merge**.
+- Do not use merge commits or rebase-and-merge for normal branch integration.
+- Before squash merging, ensure the PR title already matches Conventional Commits format.
 
 ### Main Direct Commit Policy
 - Direct commits to `main` are allowed only for **lightweight** `docs/`, `chore/`, and `build/` changes.
 - "Lightweight" means text-only or non-behavioral updates (for example typo fixes, comment wording, small config housekeeping).
 - If behavior, logic, architecture, API contracts, or runtime semantics may change, use a branch.
 - When uncertain, choose branch-based development.
+- If a change goes through a PR (including `docs/`, `chore/`, `build/`), use **Squash and Merge**.
 
 ### Branch Naming Convention
 - Use: `prefix/short-description`
@@ -80,6 +84,7 @@
 
 ## Commit Message Convention
 - Follow **Conventional Commits** for all commits.
+- PR titles MUST also follow Conventional Commits because they become the final commit title in Squash and Merge.
 - Required header format: `<type>[optional scope][optional !]: <description>`
 - Use lowercase `type` and concise imperative descriptions.
 - `type` values:
