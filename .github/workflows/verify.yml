@@ -51,6 +51,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -84,9 +86,24 @@ jobs:
       - name: Run clang-tidy
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
-            git diff --unified=0 "origin/${{ github.base_ref }}...HEAD" | \
-              python.exe scripts/run-clang-tidy.py --diff --config RelWithDebInfo
+            if git rev-parse --verify HEAD^1 >/dev/null 2>&1; then
+              diff_range="HEAD^1..HEAD"
+            else
+              python.exe scripts/run-clang-tidy.py --all --config RelWithDebInfo
+              exit 0
+            fi
           else
-            python.exe scripts/run-clang-tidy.py --all --config RelWithDebInfo
+            if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+              python.exe scripts/run-clang-tidy.py --all --config RelWithDebInfo
+              exit 0
+            fi
+            diff_range="${{ github.event.before }}...${{ github.sha }}"
           fi
+
+          git diff --unified=0 "$diff_range" > /tmp/changed.diff
+          if [[ ! -s /tmp/changed.diff ]]; then
+            echo "No changed lines detected for clang-tidy diff run"
+            exit 0
+          fi
+
+          cat /tmp/changed.diff | python.exe scripts/run-clang-tidy.py --diff --config RelWithDebInfo
