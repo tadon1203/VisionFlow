@@ -16,6 +16,7 @@ and a Win32-backed serial/device boundary for hardware communication.
 ## Project Structure
 - `include/`: Public headers and interface contracts.
 - `src/`: Source implementations.
+- `tests/`: Automated tests (`tests/unit/` for unit tests, `tests/integration/` reserved for future integration tests).
 - `third_party/`: External dependencies.
 - `build/`: Generated build artifacts.
 
@@ -25,9 +26,16 @@ python.exe build.py
 python.exe build.py --config Debug
 python.exe build.py --config Release
 python.exe build.py --config RelWithDebInfo
+python.exe build.py --no-test
 ```
 
-All builds must go through `build.py` (do not run `cmake` directly).
+All builds must go through `build.py` (do not run `cmake` directly).  
+By default, `build.py` runs both build and tests.
+
+## Test
+```bash
+python.exe build.py --config Debug --test
+```
 
 ## Run
 ```bash

@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
+include(CTest)
 
 FetchContent_Declare(
     spdlog
@@ -13,6 +14,15 @@ FetchContent_Declare(
     GIT_TAG v1.17.0
 )
 FetchContent_MakeAvailable(spdlog)
+
+if (BUILD_TESTING)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG v1.17.0
+    )
+    FetchContent_MakeAvailable(googletest)
+endif()
 
 file(GLOB_RECURSE SOURCES 
     CONFIGURE_DEPENDS
@@ -32,4 +42,8 @@ if (WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE
         setupapi
     )
+endif()
+
+if (BUILD_TESTING)
+    add_subdirectory(tests)
 endif()

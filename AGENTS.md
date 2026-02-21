@@ -9,10 +9,11 @@
 - Write and edit repository files in English unless the user explicitly requests another language.
 
 ## Quick Commands
-- Build (default RelWithDebInfo): `python.exe build.py`
-- Build (Debug): `python.exe build.py --config Debug`
-- Build (Release): `python.exe build.py --config Release`
-- Build (RelWithDebInfo): `python.exe build.py --config RelWithDebInfo`
+- Build + test (default RelWithDebInfo): `python.exe build.py`
+- Build + test (Debug): `python.exe build.py --config Debug`
+- Build + test (Release): `python.exe build.py --config Release`
+- Build + test (RelWithDebInfo): `python.exe build.py --config RelWithDebInfo`
+- Build only (skip tests): `python.exe build.py --no-test`
 - Run binary (Windows preset output): `./build/RelWithDebInfo/VisionFlow.exe`
 
 ## Project Structure
@@ -40,11 +41,24 @@
 - Introduce secrets, tokens, or environment-specific credentials into source files.
 
 ## Validation Requirements
-- Code changes: build the project (`python.exe build.py`) and report results.
+- Code changes: build and test the project (`python.exe build.py`) and report results.
 - Interface changes: verify all impacted call sites compile.
 - Runtime path changes: validate startup/shutdown and error-path behavior.
 - Build/config changes: rerun configure + build.
 - If validation cannot be executed, clearly state what was not run and why.
+
+## Testing Guidelines
+- Test scope priority: unit tests first; integration tests are introduced in a later phase when external dependencies and environments are stabilized.
+- Place tests under `tests/`:
+  - `tests/unit/`: unit tests
+  - `tests/integration/`: integration tests (reserved / phased rollout)
+- Prefer mocking boundary interfaces (`ISerialPort`, `IDeviceScanner`, `IMouseController`) to isolate logic and keep tests deterministic.
+- Add or update unit tests for new logic and bug fixes when practical.
+- Use descriptive test names that encode behavior and scenario.
+- Standard local test run:
+  - `python.exe build.py --config Debug`
+- Build-only fallback (when tests are intentionally skipped):
+  - `python.exe build.py --no-test`
 
 ## Git Workflow
 - Keep one logical change per commit scope.
