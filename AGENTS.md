@@ -9,10 +9,11 @@
 - Write and edit repository files in English unless the user explicitly requests another language.
 
 ## Quick Commands
-- Configure: `cmake -S . -B build`
-- Build: `cmake --build build`
-- Reconfigure and build: `cmake -S . -B build && cmake --build build`
-- Run binary (Windows build output): `./build/VisionFlow.exe`
+- Build (default RelWithDebInfo): `python.exe build.py`
+- Build (Debug): `python.exe build.py --config Debug`
+- Build (Release): `python.exe build.py --config Release`
+- Build (RelWithDebInfo): `python.exe build.py --config RelWithDebInfo`
+- Run binary (Windows preset output): `./build/RelWithDebInfo/VisionFlow.exe`
 
 ## Project Structure
 - `include/`: Public headers and interface contracts.
@@ -39,7 +40,7 @@
 - Introduce secrets, tokens, or environment-specific credentials into source files.
 
 ## Validation Requirements
-- Code changes: build the project (`cmake --build build`) and report results.
+- Code changes: build the project (`python.exe build.py`) and report results.
 - Interface changes: verify all impacted call sites compile.
 - Runtime path changes: validate startup/shutdown and error-path behavior.
 - Build/config changes: rerun configure + build.
@@ -50,6 +51,32 @@
 - Do not revert unrelated user changes.
 - Minimize diff size; avoid drive-by edits.
 - Keep commit-ready code deterministic and reviewable.
+- Prefer branch-based development unless a change is explicitly allowed for direct `main` commits.
+
+### Main Direct Commit Policy
+- Direct commits to `main` are allowed only for **lightweight** `docs/`, `chore/`, and `build/` changes.
+- "Lightweight" means text-only or non-behavioral updates (for example typo fixes, comment wording, small config housekeeping).
+- If behavior, logic, architecture, API contracts, or runtime semantics may change, use a branch.
+- When uncertain, choose branch-based development.
+
+### Branch Naming Convention
+- Use: `prefix/short-description`
+- Use lowercase and kebab-case for `short-description`.
+- Keep `short-description` concise and descriptive.
+- Allowed prefixes: `docs/`, `chore/`, `feat/`, `fix/`, `refactor/`, `perf/`, `build/`, `test/`, `ci/`.
+
+### Prefix Policy Matrix
+| Prefix | Direct `main` Commit | Branch Usage | Purpose |
+| --- | --- | --- | --- |
+| `docs/` | Allowed (lightweight) | Allowed (large) | Documentation and comment updates |
+| `chore/` | Allowed (lightweight) | Allowed (large) | Housekeeping, config files, `.gitignore` |
+| `build/` | Allowed (lightweight) | Allowed (large) | Build configuration, `build.py`, presets |
+| `feat/` | Forbidden | Required | New features |
+| `fix/` | Forbidden | Required | Bug fixes |
+| `refactor/` | Forbidden | Required | Code restructuring without feature intent |
+| `perf/` | Forbidden | Required | Performance improvements |
+| `test/` | Forbidden | Required | Test additions and updates |
+| `ci/` | Forbidden | Required | CI pipeline changes |
 
 ## Commit Message Convention
 - Follow **Conventional Commits** for all commits.
