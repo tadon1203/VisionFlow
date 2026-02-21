@@ -21,15 +21,17 @@ and a Win32-backed serial/device boundary for hardware communication.
 
 ## Build
 ```bash
-cmake -S . -B build
-cmake --build build
+python.exe build.py
+python.exe build.py --config Debug
+python.exe build.py --config Release
+python.exe build.py --config RelWithDebInfo
 ```
 
-`spdlog` is fetched automatically during configure/build.
+All builds must go through `build.py` (do not run `cmake` directly).
 
 ## Run
 ```bash
-./build/VisionFlow.exe
+./build/RelWithDebInfo/VisionFlow.exe
 ```
 
 Log files are created at runtime under a `logs/` directory relative to the working directory.
