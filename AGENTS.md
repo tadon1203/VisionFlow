@@ -93,6 +93,28 @@
 - For `--diff` validators, pass diff input via stdin (for example `git diff --cached | ...`).
 - PR titles MUST follow Conventional Commits (same rule as squash commit titles).
 
+### PR Body Safety Rule
+- When creating or editing PR descriptions with GitHub CLI, DO NOT pass markdown directly via `--body`.
+- Use `--body-file <path>` for `gh pr create` and `gh pr edit`.
+- Generate body files with single-quoted heredoc (`cat <<'EOF'`) to prevent shell expansion.
+- Treat backticks, `$()`, and `$VAR` as expansion-sensitive content and always keep them in body files.
+- After creating or updating a PR, verify the rendered body with `gh pr view --json body`.
+- If `gh pr edit` fails due to environment/API constraints, `gh api repos/<owner>/<repo>/pulls/<number> -X PATCH --raw-field body=...` is an allowed fallback.
+
+Example:
+```bash
+cat > /tmp/pr_body.md <<'EOF'
+## Summary
+- ...
+
+## Validation Results
+- [x] `python.exe build.py` (Build & Test OK)
+EOF
+
+gh pr create --base main --head <branch> --title "<title>" --body-file /tmp/pr_body.md
+gh pr view --json body --jq .body
+```
+
 ### Prefix Policy Matrix
 | Prefix | Direct `main` Commit | Branch Usage | Purpose |
 | --- | --- | --- | --- |
