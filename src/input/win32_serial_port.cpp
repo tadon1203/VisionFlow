@@ -60,7 +60,10 @@ std::expected<void, std::error_code> Win32SerialPort::open(const std::string& po
 
     const std::expected<void, std::error_code> configureResult = configure(baudRate);
     if (!configureResult) {
-        static_cast<void>(close());
+        const std::expected<void, std::error_code> closeResult = close();
+        if (!closeResult) {
+            return std::unexpected(closeResult.error());
+        }
         return std::unexpected(configureResult.error());
     }
     return {};
