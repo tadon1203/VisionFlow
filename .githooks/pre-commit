@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -eu
+
+diff_text="$(git diff --cached --diff-filter=ACMRTUXB)"
+if [ -z "${diff_text}" ]; then
+    exit 0
+fi
+
+if printf '%s' "${diff_text}" | python.exe scripts/run-clang-format.py --diff --check; then
+    exit 0
+fi
+
+printf '%s' "${diff_text}" | python.exe scripts/run-clang-format.py --diff
+
+echo "pre-commit: formatting was applied. Re-stage changes and commit again." >&2
+echo "hint: git add -A && git commit" >&2
+exit 1
