@@ -1,10 +1,14 @@
 #include "VisionFlow/core/app.hpp"
 
 #include <chrono>
+#include <expected>
+#include <memory>
+#include <system_error>
 #include <thread>
 #include <utility>
 
 #include "VisionFlow/core/logger.hpp"
+#include "VisionFlow/input/i_mouse_controller.hpp"
 
 namespace vf {
 

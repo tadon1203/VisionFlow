@@ -2,15 +2,15 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <mutex>
 #include <span>
 #include <string>
+#include <system_error>
+
+#include <Windows.h>
 
 #include "VisionFlow/input/i_serial_port.hpp"
-
-#ifdef _WIN32
-#include <Windows.h>
-#endif
 
 namespace vf {
 

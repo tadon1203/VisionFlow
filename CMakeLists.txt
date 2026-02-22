@@ -42,13 +42,20 @@ add_custom_target(syncCompileCommands ALL
     COMMENT "Sync compile_commands.json to ${kCompileCommandsMirrorDir}"
     VERBATIM)
 
-target_include_directories(${PROJECT_NAME} PRIVATE include)
+target_include_directories(${PROJECT_NAME} PRIVATE
+    include
+    src
+)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     spdlog::spdlog
 )
 
 if (WIN32)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        NOMINMAX
+        WIN32_LEAN_AND_MEAN
+    )
     target_link_libraries(${PROJECT_NAME} PRIVATE
         setupapi
     )

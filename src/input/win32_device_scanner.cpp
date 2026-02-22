@@ -1,9 +1,12 @@
-#include "VisionFlow/input/win32_device_scanner.hpp"
+#include "input/win32_device_scanner.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstddef>
+#include <expected>
 #include <string>
+#include <system_error>
 
 #include "VisionFlow/input/mouse_error.hpp"
 

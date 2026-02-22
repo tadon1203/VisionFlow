@@ -1,8 +1,12 @@
-#include "VisionFlow/input/win32_serial_port.hpp"
+#include "input/win32_serial_port.hpp"
 
 #include <cstddef>
 #include <cstdint>
+#include <expected>
+#include <mutex>
+#include <span>
 #include <string>
+#include <system_error>
 
 #include "VisionFlow/input/mouse_error.hpp"
 

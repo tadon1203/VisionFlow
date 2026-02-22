@@ -5,6 +5,7 @@
 #include <expected>
 #include <memory>
 #include <mutex>
+#include <stop_token>
 #include <string>
 #include <system_error>
 #include <thread>
@@ -17,7 +18,6 @@ namespace vf {
 
 class MakcuController final : public IMouseController {
   public:
-    MakcuController();
     MakcuController(std::unique_ptr<ISerialPort> serialPort,
                     std::unique_ptr<IDeviceScanner> deviceScanner);
     MakcuController(const MakcuController&) = delete;

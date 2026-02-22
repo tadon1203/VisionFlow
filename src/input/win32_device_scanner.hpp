@@ -1,5 +1,9 @@
 #pragma once
 
+#include <expected>
+#include <string>
+#include <system_error>
+
 #include "VisionFlow/input/i_device_scanner.hpp"
 
 namespace vf {

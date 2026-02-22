@@ -4,9 +4,13 @@
 #include <charconv>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <expected>
 #include <memory>
+#include <mutex>
 #include <span>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -14,9 +18,9 @@
 #include <utility>
 
 #include "VisionFlow/core/logger.hpp"
+#include "VisionFlow/input/i_device_scanner.hpp"
+#include "VisionFlow/input/i_serial_port.hpp"
 #include "VisionFlow/input/mouse_error.hpp"
-#include "VisionFlow/input/win32_device_scanner.hpp"
-#include "VisionFlow/input/win32_serial_port.hpp"
 
 namespace vf {
 
@@ -57,10 +61,6 @@ std::expected<std::size_t, std::error_code> buildMoveCommand(int dx, int dy,
 }
 
 } // namespace
-
-MakcuController::MakcuController()
-    : serialPort(std::make_unique<Win32SerialPort>()),
-      deviceScanner(std::make_unique<Win32DeviceScanner>()) {}
 
 MakcuController::MakcuController(std::unique_ptr<ISerialPort> serialPort,
                                  std::unique_ptr<IDeviceScanner> deviceScanner)

@@ -3,13 +3,17 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <memory>
 #include <span>
 #include <string>
 #include <system_error>
+#include <utility>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include "VisionFlow/input/i_device_scanner.hpp"
+#include "VisionFlow/input/i_serial_port.hpp"
 #include "VisionFlow/input/mouse_error.hpp"
 
 namespace vf {
