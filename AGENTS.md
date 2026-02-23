@@ -64,7 +64,7 @@
 - Do not revert unrelated user changes.
 - Minimize diff size; avoid drive-by edits.
 - Keep commit-ready code deterministic and reviewable.
-- Prefer branch-based development unless a change is explicitly allowed for direct `main` commits.
+- Use branch-based development for all changes; do not commit directly to `main`.
 - For branch-based changes, merge into `main` using **Squash and Merge**.
 - Do not use merge commits or rebase-and-merge for normal branch integration.
 - Before squash merging, ensure the PR title already matches Conventional Commits format.
@@ -73,11 +73,9 @@
 - If formatting updates files, the hook rewrites them and blocks commit once; re-stage and commit again.
 
 ### Main Direct Commit Policy
-- Direct commits to `main` are allowed only for **lightweight** `docs/`, `chore/`, and `build/` changes.
-- "Lightweight" means text-only or non-behavioral updates (for example typo fixes, comment wording, small config housekeeping).
-- If behavior, logic, architecture, API contracts, or runtime semantics may change, use a branch.
-- When uncertain, choose branch-based development.
-- If a change goes through a PR (including `docs/`, `chore/`, `build/`), use **Squash and Merge**.
+- Direct commits to `main` are forbidden.
+- All changes must go through a pull request and **Squash and Merge**.
+- If branch protection blocks direct push, do not bypass with policy exceptions.
 
 ### Branch Naming Convention
 - Use: `prefix/short-description`
@@ -116,17 +114,19 @@ gh pr view --json body --jq .body
 ```
 
 ### Prefix Policy Matrix
-| Prefix | Direct `main` Commit | Branch Usage | Purpose |
-| --- | --- | --- | --- |
-| `docs/` | Allowed (lightweight) | Allowed (large) | Documentation and comment updates |
-| `chore/` | Allowed (lightweight) | Allowed (large) | Housekeeping, config files, `.gitignore` |
-| `build/` | Allowed (lightweight) | Allowed (large) | Build configuration, `build.py`, presets |
-| `feat/` | Forbidden | Required | New features |
-| `fix/` | Forbidden | Required | Bug fixes |
-| `refactor/` | Forbidden | Required | Code restructuring without feature intent |
-| `perf/` | Forbidden | Required | Performance improvements |
-| `test/` | Forbidden | Required | Test additions and updates |
-| `ci/` | Forbidden | Required | CI pipeline changes |
+All prefixes follow the same workflow rule: direct `main` commit is forbidden, and branch + PR are required.
+
+| Prefix | Purpose |
+| --- | --- |
+| `docs/` | Documentation and comment updates |
+| `chore/` | Housekeeping, config files, `.gitignore` |
+| `build/` | Build configuration, `build.py`, presets |
+| `feat/` | New features |
+| `fix/` | Bug fixes |
+| `refactor/` | Code restructuring without feature intent |
+| `perf/` | Performance improvements |
+| `test/` | Test additions and updates |
+| `ci/` | CI pipeline changes |
 
 ## Commit Message Convention
 - Follow **Conventional Commits** for all commits.
