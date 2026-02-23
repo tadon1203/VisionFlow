@@ -4,7 +4,7 @@
 VisionFlow is a C++23 Windows project built with CMake.
 
 The current codebase provides a foundational runtime with logging, mouse control interfaces,
-and a Win32-backed serial/device boundary for hardware communication.
+and a WinRT-backed serial/device boundary for hardware communication.
 
 ## Requirements
 - Windows 10 or Windows 11
@@ -32,6 +32,9 @@ Minimal example:
   },
   "makcu": {
     "remainderTtlMs": 200
+  },
+  "capture": {
+    "preferredDisplayIndex": 0
   }
 }
 ```

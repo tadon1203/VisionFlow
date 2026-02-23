@@ -35,19 +35,26 @@ This document explains architecture at component and boundary level.
 ```text
 main
   -> loadConfig()
-  -> createMouseController()
-    -> App
+  -> WinRtPlatformContext (RAII)
+  -> App(config)
+    -> CaptureRuntime (interface)
+      -> WinrtCaptureRuntime (implementation)
+        -> WinrtCaptureSource
+          -> ICaptureProcessor (private src boundary)
+    -> createMouseController()
       -> IMouseController (interface)
         -> MakcuController (implementation)
           -> IDeviceScanner / ISerialPort (interfaces)
-            -> Win32DeviceScanner / Win32SerialPort (platform adapters)
+            -> WinRtDeviceScanner / WinRtSerialPort (platform adapters)
 ```
 
 ## Core Layers
 - `include/`: public contracts and interface boundaries
 - `src/core/`: application lifecycle and logging
+- `include/VisionFlow/capture/`: public capture contracts
 - `src/input/`: input domain orchestration and protocol behavior
-- `src/input/win32_*`: Win32-specific implementation details (private boundary)
+- `src/input/winrt_*`: WinRT-backed serial/device adapters (private boundary)
+- `src/capture/`: WinRT capture runtime and private processor boundary
 
 ## Core Components
 
@@ -82,10 +89,13 @@ main
 - On runtime send failure, closes serial, transitions back to `Idle`, and allows a fresh `connect()` attempt
 
 ## Platform Boundary and Composition
-- Public code composes controller instances via `createMouseController()`
+- `main` owns platform runtime scope and initializes platform context
+- `App` is the composition root for capture runtime and mouse controller
+- Controller composition still uses `createMouseController()`
 - `MakcuController` depends on abstractions (`ISerialPort`, `IDeviceScanner`)
-- Win32 concrete types stay in private `src/` headers and source files
+- Platform concrete types stay in private `src/` headers and source files
 - Public headers remain platform-independent
+- Capture processor contract with platform texture types is private under `src/capture/`
 
 ## Core Flow
 
@@ -93,9 +103,17 @@ main
 1. Scan COM port by target hardware ID
 2. Open serial at 115200 baud
 3. Send baud-change binary frame
-4. Reconfigure host serial DCB to 4000000 baud
+4. Reconfigure host serial baud rate to 4000000 (WinRT `SerialDevice` setting)
 5. Start sender thread
 6. If connect fails, return error immediately; retry policy is handled by `App`
+
+### Capture Path
+1. Enumerate display monitors
+2. Select configured display index (fallback to 0 when out of range)
+3. Create `GraphicsCaptureItem` from selected monitor
+4. Create frame pool and subscribe `FrameArrived`
+5. Start capture session
+6. Push each texture frame to capture processor
 
 ### Move Path
 1. `move(dx, dy)` writes pending command under lock
@@ -123,10 +141,12 @@ main
 
 ## Core-Relevant Structure
 - `include/VisionFlow/core/*`: public core contracts
+- `include/VisionFlow/capture/*`: public capture contracts
 - `include/VisionFlow/input/*`: public input contracts and composition entrypoints
 - `src/core/*`: app lifecycle and logging implementations
 - `src/input/*`: input orchestration and protocol implementations
-- `src/input/win32_*`: private platform adapters
+- `src/input/winrt_*`: private WinRT serial/device adapters
+- `src/capture/*`: private capture abstractions and implementations
 - `config/*`: runtime configuration inputs
 
 ## Extension Guidelines (Core)
