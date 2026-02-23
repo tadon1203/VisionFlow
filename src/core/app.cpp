@@ -12,14 +12,8 @@
 
 namespace vf {
 
-namespace {
-
-constexpr auto kReconnectRetryInterval = std::chrono::milliseconds(500);
-
-} // namespace
-
-App::App(std::unique_ptr<IMouseController> mouseController)
-    : mouseController(std::move(mouseController)) {}
+App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig)
+    : appConfig(appConfig), mouseController(std::move(mouseController)) {}
 
 bool App::run() {
     Logger::init();
@@ -44,7 +38,7 @@ bool App::run() {
                 break;
             }
 
-            std::this_thread::sleep_for(kReconnectRetryInterval);
+            std::this_thread::sleep_for(appConfig.reconnectRetryMs);
             continue;
         }
 

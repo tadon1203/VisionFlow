@@ -69,7 +69,6 @@ constexpr auto kAckTimeout = std::chrono::milliseconds(20);
 constexpr std::string_view kAckPrompt = ">>> ";
 constexpr std::size_t kAckBufferLimit = 1024;
 constexpr int kPerCommandClamp = 127;
-constexpr auto kRemainderTtl = std::chrono::milliseconds(200);
 
 std::array<std::uint8_t, 9> buildBaudRateChangeFrame(std::uint32_t baudRate) {
     return {
@@ -88,8 +87,10 @@ std::array<std::uint8_t, 9> buildBaudRateChangeFrame(std::uint32_t baudRate) {
 } // namespace
 
 MakcuController::MakcuController(std::unique_ptr<ISerialPort> serialPort,
-                                 std::unique_ptr<IDeviceScanner> deviceScanner)
-    : serialPort(std::move(serialPort)), deviceScanner(std::move(deviceScanner)) {}
+                                 std::unique_ptr<IDeviceScanner> deviceScanner,
+                                 MakcuConfig makcuConfig)
+    : serialPort(std::move(serialPort)), deviceScanner(std::move(deviceScanner)),
+      makcuConfig(makcuConfig) {}
 
 MakcuController::~MakcuController() {
     const std::expected<void, std::error_code> result = disconnect();
@@ -283,7 +284,7 @@ std::expected<void, std::error_code> MakcuController::applyAccumulationAndQueue(
 }
 
 void MakcuController::resetRemainderIfTtlExpired(std::chrono::steady_clock::time_point now) {
-    if (now - lastInputTime <= kRemainderTtl) {
+    if (now - lastInputTime <= makcuConfig.remainderTtlMs) {
         return;
     }
     remainder = {0.0F, 0.0F};
