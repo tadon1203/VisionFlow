@@ -1,0 +1,8 @@
+{
+  "app": {
+    "reconnectRetryMs": 500
+  },
+  "makcu": {
+    "remainderTtlMs": 200
+  }
+}

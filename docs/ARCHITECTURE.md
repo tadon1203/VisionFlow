@@ -34,6 +34,7 @@ This document explains architecture at component and boundary level.
 
 ```text
 main
+  -> loadConfig()
   -> createMouseController()
     -> App
       -> IMouseController (interface)
@@ -49,6 +50,11 @@ main
 - `src/input/win32_*`: Win32-specific implementation details (private boundary)
 
 ## Core Components
+
+### Config Loader
+- Loads `config/visionflow.json` at startup
+- Parses and validates runtime settings into `VisionFlowConfig`
+- Uses `std::expected<..., std::error_code>` for explicit error propagation
 
 ### App
 - Owns one `IMouseController`
@@ -105,6 +111,7 @@ main
 
 ## Error Model
 - Core operations return `std::expected<void, std::error_code>`
+- Config loading returns `std::expected<VisionFlowConfig, std::error_code>`
 - Failures are logged at the point of decision
 - Recoverable connection failures return to `Idle` to allow retry
 - `App` classifies connection errors into retryable vs non-retryable paths
@@ -120,6 +127,7 @@ main
 - `src/core/*`: app lifecycle and logging implementations
 - `src/input/*`: input orchestration and protocol implementations
 - `src/input/win32_*`: private platform adapters
+- `config/*`: runtime configuration inputs
 
 ## Extension Guidelines (Core)
 - Add new platform adapters behind existing interfaces.

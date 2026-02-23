@@ -45,6 +45,7 @@ add_custom_target(syncCompileCommands ALL
 target_include_directories(${PROJECT_NAME} PRIVATE
     include
     src
+    third_party
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 

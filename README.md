@@ -16,9 +16,25 @@ and a Win32-backed serial/device boundary for hardware communication.
 ## Project Structure
 - `include/`: Public headers and interface contracts.
 - `src/`: Source implementations.
+- `config/`: Runtime configuration files.
 - `tests/`: Automated tests (`tests/unit/` for unit tests, `tests/integration/` reserved for future integration tests).
 - `third_party/`: External dependencies.
 - `build/`: Generated build artifacts.
+
+## Configuration
+VisionFlow loads runtime settings from `config/visionflow.json`.
+
+Minimal example:
+```json
+{
+  "app": {
+    "reconnectRetryMs": 500
+  },
+  "makcu": {
+    "remainderTtlMs": 200
+  }
+}
+```
 
 ## Build
 ```bash

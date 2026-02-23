@@ -14,6 +14,7 @@
 #include <system_error>
 #include <thread>
 
+#include "VisionFlow/core/config.hpp"
 #include "VisionFlow/input/i_device_scanner.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
 #include "VisionFlow/input/i_serial_port.hpp"
@@ -23,7 +24,7 @@ namespace vf {
 class MakcuController final : public IMouseController {
   public:
     MakcuController(std::unique_ptr<ISerialPort> serialPort,
-                    std::unique_ptr<IDeviceScanner> deviceScanner);
+                    std::unique_ptr<IDeviceScanner> deviceScanner, MakcuConfig makcuConfig);
     MakcuController(const MakcuController&) = delete;
     MakcuController(MakcuController&&) = delete;
     MakcuController& operator=(const MakcuController&) = delete;
@@ -72,6 +73,7 @@ class MakcuController final : public IMouseController {
 
     std::unique_ptr<ISerialPort> serialPort;
     std::unique_ptr<IDeviceScanner> deviceScanner;
+    MakcuConfig makcuConfig;
 
     std::mutex stateMutex;
     ControllerState state = ControllerState::Idle;

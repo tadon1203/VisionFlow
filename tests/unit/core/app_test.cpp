@@ -8,6 +8,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include "VisionFlow/core/config.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
 
 namespace vf {
@@ -22,7 +23,7 @@ class MockMouseController : public IMouseController {
 };
 
 TEST(AppTest, RunReturnsFalseWhenControllerIsNull) {
-    App app(nullptr);
+    App app(nullptr, AppConfig{});
     EXPECT_FALSE(app.run());
 }
 
@@ -36,7 +37,7 @@ TEST(AppTest, RunReturnsFalseWhenConnectFails) {
     EXPECT_CALL(*mockPtr, disconnect())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
 
-    App app(std::move(mock));
+    App app(std::move(mock), AppConfig{});
     EXPECT_FALSE(app.run());
 }
 
@@ -53,7 +54,7 @@ TEST(AppTest, RunRetriesConnectForRecoverableErrorThenFails) {
     EXPECT_CALL(*mockPtr, disconnect())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
 
-    App app(std::move(mock));
+    App app(std::move(mock), AppConfig{});
     EXPECT_FALSE(app.run());
 }
 
