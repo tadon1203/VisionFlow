@@ -29,6 +29,8 @@ class MouseErrorCategory final : public std::error_category {
             return "handshake timed out";
         case MouseError::ProtocolError:
             return "protocol error";
+        case MouseError::NotConnected:
+            return "not connected";
         case MouseError::ThreadNotRunning:
             return "sender thread not running";
         default:
@@ -46,6 +48,15 @@ const std::error_category& mouseErrorCategory() noexcept {
 
 std::error_code makeErrorCode(MouseError error) noexcept {
     return {static_cast<int>(error), mouseErrorCategory()};
+}
+
+bool shouldRetryConnectError(const std::error_code& error) noexcept {
+    if (error.category() != mouseErrorCategory()) {
+        return false;
+    }
+
+    const auto code = static_cast<MouseError>(error.value());
+    return code != MouseError::PlatformNotSupported;
 }
 
 } // namespace vf

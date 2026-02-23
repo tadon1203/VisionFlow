@@ -168,6 +168,9 @@ All prefixes follow the same workflow rule: direct `main` commit is forbidden, a
 - **Linear Logic**: Prefer boring, explicit control flow over clever or overly compact constructs when readability is better.
 - **YAGNI (You Aren't Gonna Need It)**: Do not add hypothetical extension points.
 - **Zero-Overhead Principle**: Do not pay runtime cost for unused abstractions.
+- **Helper Placement Rule**:
+  - If logic does not require class state (member variables), place it in the `.cpp` anonymous namespace (or a `static` free function).
+  - If logic reads or writes class internal state, implement it as a private member function.
 
 ### 4. Safety & Robustness
 - **Interface Safety**: Make APIs easy to use correctly and hard to misuse.

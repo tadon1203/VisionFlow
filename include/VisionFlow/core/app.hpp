@@ -16,7 +16,7 @@ class App {
     bool running = false;
     std::unique_ptr<IMouseController> mouseController;
 
-    void mainLoop() const;
+    void tick() const;
 };
 
 } // namespace vf

@@ -1,5 +1,6 @@
 #include "VisionFlow/input/makcu_controller.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -7,6 +8,7 @@
 #include <span>
 #include <string>
 #include <system_error>
+#include <thread>
 #include <utility>
 
 #include <gmock/gmock.h>
@@ -104,7 +106,58 @@ TEST(MakcuControllerTest, MoveFailsWhenControllerIsNotReady) {
     const auto result = controller.move(1, 1);
 
     ASSERT_FALSE(result.has_value());
-    EXPECT_EQ(result.error(), makeErrorCode(MouseError::ThreadNotRunning));
+    EXPECT_EQ(result.error(), makeErrorCode(MouseError::NotConnected));
+}
+
+TEST(MakcuControllerTest, ReconnectsAfterMoveWriteFailure) {
+    auto serial = std::make_unique<testing::StrictMock<MockSerialPort>>();
+    auto scanner = std::make_unique<testing::StrictMock<MockDeviceScanner>>();
+    auto* serialPtr = serial.get();
+    auto* scannerPtr = scanner.get();
+
+    EXPECT_CALL(*scannerPtr, findPortByHardwareId(testing::_))
+        .Times(2)
+        .WillRepeatedly(testing::Return(std::string("COM9")));
+    EXPECT_CALL(*serialPtr, open("COM9", 115200U))
+        .Times(2)
+        .WillRepeatedly(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*serialPtr, configure(4000000U))
+        .Times(2)
+        .WillRepeatedly(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*serialPtr, close())
+        .Times(2)
+        .WillRepeatedly(testing::Return(std::expected<void, std::error_code>{}));
+
+    int writeCallCount = 0;
+    EXPECT_CALL(*serialPtr, write(testing::_))
+        .Times(testing::AtLeast(5))
+        .WillRepeatedly([&writeCallCount](
+                            std::span<const std::uint8_t>) -> std::expected<void, std::error_code> {
+            ++writeCallCount;
+            if (writeCallCount == 3) {
+                return std::unexpected(makeErrorCode(MouseError::WriteFailed));
+            }
+            return std::expected<void, std::error_code>{};
+        });
+
+    MakcuController controller(std::move(serial), std::move(scanner));
+    ASSERT_TRUE(controller.connect().has_value());
+    ASSERT_TRUE(controller.move(1, 1).has_value());
+
+    bool moveFailureObserved = false;
+    for (int i = 0; i < 100; ++i) {
+        const auto moveResult = controller.move(1, 1);
+        if (!moveResult) {
+            EXPECT_EQ(moveResult.error(), makeErrorCode(MouseError::NotConnected));
+            moveFailureObserved = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    ASSERT_TRUE(moveFailureObserved);
+
+    const auto reconnectResult = controller.connect();
+    EXPECT_TRUE(reconnectResult.has_value());
 }
 
 } // namespace

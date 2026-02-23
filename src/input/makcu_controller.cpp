@@ -60,6 +60,23 @@ std::expected<std::size_t, std::error_code> buildMoveCommand(int dx, int dy,
     return offset;
 }
 
+constexpr auto kHandshakeStabilizationDelay = std::chrono::milliseconds(2);
+constexpr std::string_view kEchoCommand = "km.echo(0)\r\n";
+
+std::array<std::uint8_t, 9> buildBaudRateChangeFrame(std::uint32_t baudRate) {
+    return {
+        0xDE,
+        0xAD,
+        0x05,
+        0x00,
+        0xA5,
+        static_cast<std::uint8_t>(baudRate & 0xFFU),
+        static_cast<std::uint8_t>((baudRate >> 8U) & 0xFFU),
+        static_cast<std::uint8_t>((baudRate >> 16U) & 0xFFU),
+        static_cast<std::uint8_t>((baudRate >> 24U) & 0xFFU),
+    };
+}
+
 } // namespace
 
 MakcuController::MakcuController(std::unique_ptr<ISerialPort> serialPort,
@@ -74,14 +91,27 @@ MakcuController::~MakcuController() {
     }
 }
 
+void MakcuController::stopSenderThread() {
+    if (sendThread.joinable()) {
+        sendThread.request_stop();
+        commandCv.notify_all();
+        sendThread.join();
+    }
+}
+
 std::expected<void, std::error_code> MakcuController::connect() {
     {
         std::scoped_lock lock(stateMutex);
         if (state == ControllerState::Ready) {
             return {};
         }
+        if (state == ControllerState::Opening || state == ControllerState::Stopping) {
+            return std::unexpected(makeErrorCode(MouseError::ProtocolError));
+        }
         state = ControllerState::Opening;
     }
+
+    stopSenderThread();
 
     if (!serialPort || !deviceScanner) {
         std::scoped_lock lock(stateMutex);
@@ -136,11 +166,7 @@ std::expected<void, std::error_code> MakcuController::disconnect() {
         state = ControllerState::Stopping;
     }
 
-    if (sendThread.joinable()) {
-        sendThread.request_stop();
-        commandCv.notify_all();
-        sendThread.join();
-    }
+    stopSenderThread();
 
     {
         std::scoped_lock lock(commandMutex);
@@ -162,7 +188,7 @@ std::expected<void, std::error_code> MakcuController::move(int dx, int dy) {
     {
         std::scoped_lock lock(stateMutex);
         if (state != ControllerState::Ready) {
-            return std::unexpected(makeErrorCode(MouseError::ThreadNotRunning));
+            return std::unexpected(makeErrorCode(MouseError::NotConnected));
         }
     }
 
@@ -177,12 +203,13 @@ std::expected<void, std::error_code> MakcuController::move(int dx, int dy) {
     return {};
 }
 
-std::expected<void, std::error_code> MakcuController::writeText(const std::string& text) {
+std::expected<void, std::error_code> MakcuController::writeText(std::string_view text) {
     if (!serialPort) {
         return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
     }
 
-    const std::span<const std::byte> bytes = std::as_bytes(std::span(text));
+    const std::span<const char> textBytes(text.data(), text.size());
+    const std::span<const std::byte> bytes = std::as_bytes(textBytes);
     return serialPort->write({reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()});
 }
 
@@ -192,7 +219,7 @@ std::expected<void, std::error_code> MakcuController::runUpgradeHandshake() {
         return std::unexpected(frameResult.error());
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    std::this_thread::sleep_for(kHandshakeStabilizationDelay);
 
     const std::expected<void, std::error_code> configureResult =
         serialPort->configure(kUpgradedBaudRate);
@@ -200,7 +227,7 @@ std::expected<void, std::error_code> MakcuController::runUpgradeHandshake() {
         return std::unexpected(configureResult.error());
     }
 
-    const std::expected<void, std::error_code> echoWriteResult = writeText("km.echo(0)\r\n");
+    const std::expected<void, std::error_code> echoWriteResult = writeText(kEchoCommand);
     if (!echoWriteResult) {
         return std::unexpected(echoWriteResult.error());
     }
@@ -213,36 +240,42 @@ std::expected<void, std::error_code> MakcuController::sendBaudChangeFrame(std::u
         return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
     }
 
-    const std::array<std::uint8_t, 9> frame{
-        0xDE,
-        0xAD,
-        0x05,
-        0x00,
-        0xA5,
-        static_cast<std::uint8_t>(baudRate & 0xFFU),
-        static_cast<std::uint8_t>((baudRate >> 8U) & 0xFFU),
-        static_cast<std::uint8_t>((baudRate >> 16U) & 0xFFU),
-        static_cast<std::uint8_t>((baudRate >> 24U) & 0xFFU),
-    };
-
+    const std::array<std::uint8_t, 9> frame = buildBaudRateChangeFrame(baudRate);
     return serialPort->write(frame);
+}
+
+bool MakcuController::waitAndPopCommand(const std::stop_token& stopToken, MoveCommand& command) {
+    std::unique_lock<std::mutex> lock(commandMutex);
+    commandCv.wait(lock, [this, &stopToken] { return stopToken.stop_requested() || pending; });
+    if (stopToken.stop_requested()) {
+        return false;
+    }
+
+    command = pendingCommand;
+    pending = false;
+    return true;
+}
+
+void MakcuController::handleSendError(const std::error_code& error) {
+    VF_ERROR("MakcuController move send failed: {}", error.message());
+
+    const std::expected<void, std::error_code> closeResult = serialPort->close();
+    if (!closeResult) {
+        VF_WARN("MakcuController close after move send failure failed: {}",
+                closeResult.error().message());
+    }
+
+    std::scoped_lock lock(stateMutex);
+    if (state == ControllerState::Ready) {
+        state = ControllerState::Idle;
+    }
 }
 
 void MakcuController::senderLoop(const std::stop_token& stopToken) {
     while (!stopToken.stop_requested()) {
         MoveCommand command;
-
-        {
-            std::unique_lock<std::mutex> lock(commandMutex);
-            commandCv.wait(lock,
-                           [this, &stopToken] { return stopToken.stop_requested() || pending; });
-
-            if (stopToken.stop_requested()) {
-                break;
-            }
-
-            command = pendingCommand;
-            pending = false;
+        if (!waitAndPopCommand(stopToken, command)) {
+            break;
         }
 
         std::array<char, 64> commandBuffer{};
@@ -258,7 +291,8 @@ void MakcuController::senderLoop(const std::stop_token& stopToken) {
             reinterpret_cast<const std::uint8_t*>(commandBuffer.data()), commandSize.value());
         const std::expected<void, std::error_code> writeResult = serialPort->write(payload);
         if (!writeResult) {
-            VF_ERROR("MakcuController move send failed: {}", writeResult.error().message());
+            handleSendError(writeResult.error());
+            break;
         }
     }
 }

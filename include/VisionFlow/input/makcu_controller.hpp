@@ -6,7 +6,7 @@
 #include <memory>
 #include <mutex>
 #include <stop_token>
-#include <string>
+#include <string_view>
 #include <system_error>
 #include <thread>
 
@@ -48,9 +48,12 @@ class MakcuController final : public IMouseController {
         int dy = 0;
     };
 
-    [[nodiscard]] std::expected<void, std::error_code> writeText(const std::string& text);
+    [[nodiscard]] std::expected<void, std::error_code> writeText(std::string_view text);
     [[nodiscard]] std::expected<void, std::error_code> runUpgradeHandshake();
     [[nodiscard]] std::expected<void, std::error_code> sendBaudChangeFrame(std::uint32_t baudRate);
+    [[nodiscard]] bool waitAndPopCommand(const std::stop_token& stopToken, MoveCommand& command);
+    void handleSendError(const std::error_code& error);
+    void stopSenderThread();
 
     void senderLoop(const std::stop_token& stopToken);
 

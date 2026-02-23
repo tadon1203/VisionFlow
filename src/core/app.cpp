@@ -12,6 +12,12 @@
 
 namespace vf {
 
+namespace {
+
+constexpr auto kReconnectRetryInterval = std::chrono::milliseconds(500);
+
+} // namespace
+
 App::App(std::unique_ptr<IMouseController> mouseController)
     : mouseController(std::move(mouseController)) {}
 
@@ -24,15 +30,27 @@ bool App::run() {
         return false;
     }
 
-    const std::expected<void, std::error_code> connectResult = mouseController->connect();
-    if (!connectResult) {
-        VF_ERROR("App run failed: mouse connect failed ({})", connectResult.error().message());
-        return false;
-    }
-
+    bool success = true;
     running = true;
+    while (running) {
+        const std::expected<void, std::error_code> connectResult = mouseController->connect();
+        if (!connectResult) {
+            VF_WARN("App reconnect attempt failed: {}", connectResult.error().message());
+            if (!mouseController->shouldRetryConnect(connectResult.error())) {
+                VF_ERROR("App run failed: unrecoverable connect error ({})",
+                         connectResult.error().message());
+                success = false;
+                running = false;
+                break;
+            }
 
-    mainLoop();
+            std::this_thread::sleep_for(kReconnectRetryInterval);
+            continue;
+        }
+
+        tick();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 
     const std::expected<void, std::error_code> disconnectResult = mouseController->disconnect();
     if (!disconnectResult) {
@@ -41,13 +59,9 @@ bool App::run() {
     }
 
     VF_INFO("App run finished");
-    return true;
+    return success;
 }
 
-void App::mainLoop() const {
-    while (running) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-}
+void App::tick() const {}
 
 } // namespace vf

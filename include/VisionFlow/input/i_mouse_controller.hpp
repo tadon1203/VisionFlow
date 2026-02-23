@@ -3,6 +3,8 @@
 #include <expected>
 #include <system_error>
 
+#include "VisionFlow/input/mouse_error.hpp"
+
 namespace vf {
 
 class IMouseController {
@@ -15,6 +17,9 @@ class IMouseController {
     virtual ~IMouseController() = default;
 
     [[nodiscard]] virtual std::expected<void, std::error_code> connect() = 0;
+    [[nodiscard]] virtual bool shouldRetryConnect(const std::error_code& error) const {
+        return shouldRetryConnectError(error);
+    }
     [[nodiscard]] virtual std::expected<void, std::error_code> disconnect() = 0;
     [[nodiscard]] virtual std::expected<void, std::error_code> move(int dx, int dy) = 0;
 };
