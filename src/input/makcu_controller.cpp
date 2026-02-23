@@ -1,12 +1,15 @@
 #include "VisionFlow/input/makcu_controller.hpp"
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <expected>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <span>
@@ -65,6 +68,7 @@ constexpr std::string_view kEchoCommand = "km.echo(0)\r\n";
 constexpr auto kAckTimeout = std::chrono::milliseconds(20);
 constexpr std::string_view kAckPrompt = ">>> ";
 constexpr std::size_t kAckBufferLimit = 1024;
+constexpr int kPerCommandClamp = 127;
 
 std::array<std::uint8_t, 9> buildBaudRateChangeFrame(std::uint32_t baudRate) {
     return {
@@ -151,6 +155,12 @@ std::expected<void, std::error_code> MakcuController::connect() {
     }
 
     {
+        std::scoped_lock lock(commandMutex);
+        pending = false;
+        pendingCommand = {};
+        remainder = {0.0F, 0.0F};
+    }
+    {
         std::scoped_lock lock(ackMutex);
         sendAllowed = true;
         ackPending = false;
@@ -188,6 +198,7 @@ std::expected<void, std::error_code> MakcuController::disconnect() {
         std::scoped_lock lock(commandMutex);
         pending = false;
         pendingCommand = {};
+        remainder = {0.0F, 0.0F};
     }
     {
         std::scoped_lock lock(ackMutex);
@@ -207,7 +218,7 @@ std::expected<void, std::error_code> MakcuController::disconnect() {
     return closeResult;
 }
 
-std::expected<void, std::error_code> MakcuController::move(int dx, int dy) {
+std::expected<void, std::error_code> MakcuController::move(float dx, float dy) {
     {
         std::scoped_lock lock(stateMutex);
         if (state != ControllerState::Ready) {
@@ -215,15 +226,73 @@ std::expected<void, std::error_code> MakcuController::move(int dx, int dy) {
         }
     }
 
+    bool notifySender = false;
     {
         std::scoped_lock lock(commandMutex);
-        pendingCommand.dx = dx;
-        pendingCommand.dy = dy;
-        pending = true;
+        const std::expected<void, std::error_code> accumulationResult =
+            applyAccumulationAndQueue(dx, dy);
+        if (!accumulationResult) {
+            return std::unexpected(accumulationResult.error());
+        }
+        notifySender = pending;
     }
 
-    commandCv.notify_one();
+    if (notifySender) {
+        commandCv.notify_one();
+    }
     return {};
+}
+
+std::expected<void, std::error_code> MakcuController::applyAccumulationAndQueue(float dx,
+                                                                                float dy) {
+    if (!std::isfinite(dx) || !std::isfinite(dy)) {
+        return std::unexpected(makeErrorCode(MouseError::ProtocolError));
+    }
+
+    const float accumulatedX = remainder[0] + dx;
+    const float accumulatedY = remainder[1] + dy;
+    if (!std::isfinite(accumulatedX) || !std::isfinite(accumulatedY)) {
+        return std::unexpected(makeErrorCode(MouseError::ProtocolError));
+    }
+
+    const double truncatedX = std::trunc(static_cast<double>(accumulatedX));
+    const double truncatedY = std::trunc(static_cast<double>(accumulatedY));
+    if (truncatedX > static_cast<double>(std::numeric_limits<int>::max()) ||
+        truncatedX < static_cast<double>(std::numeric_limits<int>::min()) ||
+        truncatedY > static_cast<double>(std::numeric_limits<int>::max()) ||
+        truncatedY < static_cast<double>(std::numeric_limits<int>::min())) {
+        return std::unexpected(makeErrorCode(MouseError::ProtocolError));
+    }
+
+    const int intPartX = static_cast<int>(truncatedX);
+    const int intPartY = static_cast<int>(truncatedY);
+
+    remainder[0] = accumulatedX - static_cast<float>(intPartX);
+    remainder[1] = accumulatedY - static_cast<float>(intPartY);
+
+    pendingCommand.dx += intPartX;
+    pendingCommand.dy += intPartY;
+    pending = pendingCommand.dx != 0 || pendingCommand.dy != 0;
+    return {};
+}
+
+void MakcuController::splitAndRequeueOverflow(MoveCommand& command) {
+    const int clampedDx = std::clamp(command.dx, -kPerCommandClamp, kPerCommandClamp);
+    const int clampedDy = std::clamp(command.dy, -kPerCommandClamp, kPerCommandClamp);
+    const int overflowDx = command.dx - clampedDx;
+    const int overflowDy = command.dy - clampedDy;
+
+    command.dx = clampedDx;
+    command.dy = clampedDy;
+
+    if (overflowDx == 0 && overflowDy == 0) {
+        return;
+    }
+
+    std::scoped_lock lock(commandMutex);
+    pendingCommand.dx += overflowDx;
+    pendingCommand.dy += overflowDy;
+    pending = pendingCommand.dx != 0 || pendingCommand.dy != 0;
 }
 
 std::expected<void, std::error_code> MakcuController::writeText(std::string_view text) {
@@ -275,6 +344,7 @@ bool MakcuController::waitAndPopCommand(const std::stop_token& stopToken, MoveCo
     }
 
     command = pendingCommand;
+    pendingCommand = {};
     pending = false;
     return true;
 }
@@ -356,6 +426,8 @@ void MakcuController::senderLoop(const std::stop_token& stopToken) {
         if (!waitUntilSendAllowed(stopToken)) {
             break;
         }
+
+        splitAndRequeueOverflow(command);
 
         std::array<char, 64> commandBuffer{};
         const std::expected<std::size_t, std::error_code> commandSize =

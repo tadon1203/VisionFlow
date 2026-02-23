@@ -18,7 +18,7 @@ class MockMouseController : public IMouseController {
     MOCK_METHOD((std::expected<void, std::error_code>), connect, (), (override));
     MOCK_METHOD(bool, shouldRetryConnect, (const std::error_code& error), (const, override));
     MOCK_METHOD((std::expected<void, std::error_code>), disconnect, (), (override));
-    MOCK_METHOD((std::expected<void, std::error_code>), move, (int dx, int dy), (override));
+    MOCK_METHOD((std::expected<void, std::error_code>), move, (float dx, float dy), (override));
 };
 
 TEST(AppTest, RunReturnsFalseWhenControllerIsNull) {
