@@ -64,6 +64,7 @@
 - Do not revert unrelated user changes.
 - Minimize diff size; avoid drive-by edits.
 - Keep commit-ready code deterministic and reviewable.
+- Always use pull requests for integration; direct integration to `main` is not allowed.
 - Use branch-based development for all changes; do not commit directly to `main`.
 - For branch-based changes, merge into `main` using **Squash and Merge**.
 - Do not use merge commits or rebase-and-merge for normal branch integration.
@@ -74,7 +75,7 @@
 
 ### Main Direct Commit Policy
 - Direct commits to `main` are forbidden.
-- All changes must go through a pull request and **Squash and Merge**.
+- All changes must always go through a pull request and **Squash and Merge**.
 - If branch protection blocks direct push, do not bypass with policy exceptions.
 
 ### Branch Naming Convention
