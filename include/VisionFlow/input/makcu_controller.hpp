@@ -5,7 +5,9 @@
 #include <expected>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <stop_token>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <thread>
@@ -52,6 +54,11 @@ class MakcuController final : public IMouseController {
     [[nodiscard]] std::expected<void, std::error_code> runUpgradeHandshake();
     [[nodiscard]] std::expected<void, std::error_code> sendBaudChangeFrame(std::uint32_t baudRate);
     [[nodiscard]] bool waitAndPopCommand(const std::stop_token& stopToken, MoveCommand& command);
+    [[nodiscard]] bool waitUntilSendAllowed(const std::stop_token& stopToken);
+    [[nodiscard]] bool waitForAck(const std::stop_token& stopToken);
+    void markAckPending();
+    void onDataReceived(std::span<const std::uint8_t> payload);
+    void consumeAckToken();
     void handleSendError(const std::error_code& error);
     void stopSenderThread();
 
@@ -68,6 +75,12 @@ class MakcuController final : public IMouseController {
     std::mutex commandMutex;
     bool pending = false;
     MoveCommand pendingCommand;
+
+    std::condition_variable ackCv;
+    std::mutex ackMutex;
+    bool sendAllowed = true;
+    bool ackPending = false;
+    std::string ackBuffer;
 };
 
 } // namespace vf

@@ -1,12 +1,17 @@
 #include "input/win32_serial_port.hpp"
 
+#include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <mutex>
 #include <span>
+#include <stop_token>
 #include <string>
 #include <system_error>
+#include <thread>
+#include <utility>
 
 #include "VisionFlow/input/mouse_error.hpp"
 
@@ -70,6 +75,8 @@ std::expected<void, std::error_code> Win32SerialPort::open(const std::string& po
         }
         return std::unexpected(configureResult.error());
     }
+
+    startReadThread();
     return {};
 #endif
 }
@@ -78,6 +85,7 @@ std::expected<void, std::error_code> Win32SerialPort::close() {
 #ifndef _WIN32
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
 #else
+    stopReadThread();
     std::scoped_lock lock(handleMutex);
 
     if (!opened) {
@@ -167,6 +175,11 @@ std::expected<void, std::error_code> Win32SerialPort::write(std::span<const std:
 #endif
 }
 
+void Win32SerialPort::setDataReceivedHandler(DataReceivedHandler handler) {
+    std::scoped_lock lock(callbackMutex);
+    dataReceivedHandler = std::move(handler);
+}
+
 std::expected<std::size_t, std::error_code>
 Win32SerialPort::readSome(std::span<std::uint8_t> buffer) {
 #ifndef _WIN32
@@ -188,6 +201,52 @@ Win32SerialPort::readSome(std::span<std::uint8_t> buffer) {
 
     return static_cast<std::size_t>(bytesRead);
 #endif
+}
+
+void Win32SerialPort::startReadThread() {
+    if (readThread.joinable()) {
+        return;
+    }
+    readThread = std::jthread([this](const std::stop_token& stopToken) { readLoop(stopToken); });
+}
+
+void Win32SerialPort::stopReadThread() {
+    if (!readThread.joinable()) {
+        return;
+    }
+    readThread.request_stop();
+    readThread.join();
+}
+
+void Win32SerialPort::readLoop(const std::stop_token& stopToken) {
+    while (!stopToken.stop_requested()) {
+        std::array<std::uint8_t, 256> buffer{};
+        const std::expected<std::size_t, std::error_code> readResult = readSome(buffer);
+        if (!readResult) {
+            if (stopToken.stop_requested()) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+
+        if (readResult.value() == 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+
+        DataReceivedHandler handler;
+        {
+            std::scoped_lock lock(callbackMutex);
+            handler = dataReceivedHandler;
+        }
+        if (!handler) {
+            continue;
+        }
+
+        const std::span<const std::uint8_t> payload(buffer.data(), readResult.value());
+        handler(payload);
+    }
 }
 
 } // namespace vf
