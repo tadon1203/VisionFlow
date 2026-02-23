@@ -62,6 +62,9 @@ std::expected<std::size_t, std::error_code> buildMoveCommand(int dx, int dy,
 
 constexpr auto kHandshakeStabilizationDelay = std::chrono::milliseconds(2);
 constexpr std::string_view kEchoCommand = "km.echo(0)\r\n";
+constexpr auto kAckTimeout = std::chrono::milliseconds(20);
+constexpr std::string_view kAckPrompt = ">>> ";
+constexpr std::size_t kAckBufferLimit = 1024;
 
 std::array<std::uint8_t, 9> buildBaudRateChangeFrame(std::uint32_t baudRate) {
     return {
@@ -147,6 +150,15 @@ std::expected<void, std::error_code> MakcuController::connect() {
         return std::unexpected(handshakeResult.error());
     }
 
+    {
+        std::scoped_lock lock(ackMutex);
+        sendAllowed = true;
+        ackPending = false;
+        ackBuffer.clear();
+    }
+    serialPort->setDataReceivedHandler(
+        [this](std::span<const std::uint8_t> payload) { onDataReceived(payload); });
+
     sendThread = std::jthread([this](const std::stop_token& st) { senderLoop(st); });
     {
         std::scoped_lock lock(stateMutex);
@@ -168,11 +180,22 @@ std::expected<void, std::error_code> MakcuController::disconnect() {
 
     stopSenderThread();
 
+    if (serialPort) {
+        serialPort->setDataReceivedHandler(nullptr);
+    }
+
     {
         std::scoped_lock lock(commandMutex);
         pending = false;
         pendingCommand = {};
     }
+    {
+        std::scoped_lock lock(ackMutex);
+        sendAllowed = true;
+        ackPending = false;
+        ackBuffer.clear();
+    }
+    ackCv.notify_all();
 
     const std::expected<void, std::error_code> closeResult =
         serialPort ? serialPort->close() : std::expected<void, std::error_code>{};
@@ -256,8 +279,61 @@ bool MakcuController::waitAndPopCommand(const std::stop_token& stopToken, MoveCo
     return true;
 }
 
+bool MakcuController::waitUntilSendAllowed(const std::stop_token& stopToken) {
+    std::unique_lock<std::mutex> lock(ackMutex);
+    ackCv.wait(lock, [this, &stopToken] { return stopToken.stop_requested() || sendAllowed; });
+    return !stopToken.stop_requested();
+}
+
+void MakcuController::markAckPending() {
+    std::scoped_lock lock(ackMutex);
+    sendAllowed = false;
+    ackPending = true;
+}
+
+bool MakcuController::waitForAck(const std::stop_token& stopToken) {
+    std::unique_lock<std::mutex> lock(ackMutex);
+    const bool ackReceived = ackCv.wait_for(lock, kAckTimeout, [this, &stopToken] {
+        return stopToken.stop_requested() || !ackPending;
+    });
+
+    if (stopToken.stop_requested()) {
+        return false;
+    }
+    if (!ackReceived || ackPending) {
+        ackPending = false;
+        sendAllowed = true;
+        return false;
+    }
+    return true;
+}
+
+void MakcuController::onDataReceived(std::span<const std::uint8_t> payload) {
+    std::scoped_lock lock(ackMutex);
+
+    ackBuffer.append(reinterpret_cast<const char*>(payload.data()), payload.size());
+    consumeAckToken();
+}
+
+void MakcuController::consumeAckToken() {
+    const std::size_t ackPosition = ackBuffer.find(kAckPrompt);
+    if (ackPosition != std::string::npos) {
+        if (ackPending) {
+            ackPending = false;
+            sendAllowed = true;
+            ackCv.notify_one();
+        }
+        ackBuffer.erase(0, ackPosition + kAckPrompt.size());
+        return;
+    }
+
+    if (ackBuffer.size() > kAckBufferLimit) {
+        ackBuffer.erase(0, ackBuffer.size() - kAckBufferLimit);
+    }
+}
+
 void MakcuController::handleSendError(const std::error_code& error) {
-    VF_ERROR("MakcuController move send failed: {}", error.message());
+    VF_ERROR("MakcuController sender failure: {}", error.message());
 
     const std::expected<void, std::error_code> closeResult = serialPort->close();
     if (!closeResult) {
@@ -277,6 +353,9 @@ void MakcuController::senderLoop(const std::stop_token& stopToken) {
         if (!waitAndPopCommand(stopToken, command)) {
             break;
         }
+        if (!waitUntilSendAllowed(stopToken)) {
+            break;
+        }
 
         std::array<char, 64> commandBuffer{};
         const std::expected<std::size_t, std::error_code> commandSize =
@@ -289,9 +368,20 @@ void MakcuController::senderLoop(const std::stop_token& stopToken) {
 
         const std::span<const std::uint8_t> payload(
             reinterpret_cast<const std::uint8_t*>(commandBuffer.data()), commandSize.value());
+        markAckPending();
         const std::expected<void, std::error_code> writeResult = serialPort->write(payload);
         if (!writeResult) {
+            {
+                std::scoped_lock lock(ackMutex);
+                ackPending = false;
+                sendAllowed = true;
+            }
+            ackCv.notify_one();
             handleSendError(writeResult.error());
+            break;
+        }
+        if (!waitForAck(stopToken)) {
+            handleSendError(makeErrorCode(MouseError::ProtocolError));
             break;
         }
     }
