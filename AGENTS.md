@@ -19,15 +19,11 @@
 - Install git hooks: `python.exe scripts/install-hooks.py`
 - Run binary (Windows preset output): `./build/RelWithDebInfo/VisionFlow.exe`
 
-## Project Structure
-- `include/`: Public headers and interface contracts.
-- `src/`: Implementations.
-- `third_party/`: External dependencies; do not modify unless explicitly requested.
-- `build/`: Generated artifacts only.
-
 ## Boundaries
 ### Always Do
 - Read `.clang-format` and `.clang-tidy` before code changes.
+- Read `docs/ARCHITECTURE.md` before changing architecture boundaries or ownership flows.
+- Update `docs/ARCHITECTURE.md` when architecture boundaries or ownership flows change.
 - Keep changes scoped to the user request.
 - Preserve existing architecture boundaries and interfaces when possible.
 - Add logs for critical state transitions and failures in runtime-critical paths.
@@ -153,23 +149,28 @@ gh pr view --json body --jq .body
 
 ### 1. Architectural Integrity
 - **SOLID**: Maintain focused responsibilities. Prefer clear abstractions (interfaces/abstract classes) so modules can evolve without cascading edits.
+- **LSP (Liskov Substitution Principle)**: Implementations must remain substitutable for their interfaces. Do not introduce hidden preconditions or behavior that violates interface expectations.
 - **Composition over Inheritance**: Favor assembling behavior from small, decoupled components.
 - **DRY (Don't Repeat Yourself)**: Keep each piece of logic in one authoritative place.
 - **Platform Boundary Isolation**: Isolate platform-specific dependencies behind explicit boundaries. Keep upper layers dependent on abstractions, not direct OS/API calls.
 
 ### 2. Resource, Performance, and Constants
 - **RAII (Resource Acquisition Is Initialization)**: Bind resource lifecycles (memory, mutexes, handles) to object lifetimes.
+- **Rule of Zero**: Prefer designs where ownership and cleanup are handled by standard library types so custom special member functions are unnecessary. Use explicit `= delete` or custom special members only when ownership semantics require it.
 - **Value Semantics**: Prefer value/reference semantics where practical.
 - **Hot Path Allocation Rule**: Avoid unnecessary dynamic allocation in hot paths. Reuse buffers and keep per-iteration overhead predictable.
 - **Magic Number Rule (`constexpr`)**: Replace magic numbers with named `constexpr` constants.
 
 ### 3. Simplicity & Pragmatism
 - **KISS (Keep It Simple, Stupid)**: In this project, "simple" means code that a reader can understand correctly in the shortest time. Choose the design with the clearest intent and no unnecessary structural elements.
+- **Avoid Over-Engineering**: Do not add layered abstractions based only on hypothetical future needs.
+- **Linear Logic**: Prefer boring, explicit control flow over clever or overly compact constructs when readability is better.
 - **YAGNI (You Aren't Gonna Need It)**: Do not add hypothetical extension points.
 - **Zero-Overhead Principle**: Do not pay runtime cost for unused abstractions.
 
 ### 4. Safety & Robustness
 - **Interface Safety**: Make APIs easy to use correctly and hard to misuse.
+- **No-Discard Rule**: Functions with failure-prone or side-effectful outcomes should return values that must be checked (use `[[nodiscard]]` where appropriate). If discarding is intentional, do it explicitly (for example `static_cast<void>(result)`).
 - **State Machine Discipline**: Manage mutable state with explicit `enum class` state models and validated transitions.
 - **Thread Ownership & Shutdown Rule**: Assign each thread a single owner and enforce explicit shutdown sequencing (`request stop -> wake -> join`).
 - **Principle of Least Astonishment**: Keep behavior intuitive and consistent.
@@ -195,6 +196,7 @@ gh pr view --json body --jq .body
   - Third-party library headers
   - OS/platform headers
 - Use `"..."` for project headers in this repository.
+- **Self-contained Headers**: Every header must compile in isolation with its own required includes or forward declarations, and must not depend on include order side effects.
 - Path base rules for project headers:
   - Public headers: write paths from `include/` root.
   - Private headers: write paths from `src/` root.
