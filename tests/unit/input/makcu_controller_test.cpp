@@ -83,13 +83,11 @@ class FakeSerialPort : public ISerialPort {
             moveCv.notify_all();
 
             DataReceivedHandler handlerCopy;
-            bool shouldAck = false;
             {
                 std::scoped_lock lock(handlerMutex);
                 handlerCopy = handler;
-                shouldAck = autoAck;
             }
-            if (shouldAck && handlerCopy) {
+            if (handlerCopy) {
                 static constexpr std::uint8_t ackData[]{'>', '>', '>', ' ', '\r', '\n'};
                 handlerCopy(ackData);
             }
@@ -108,11 +106,6 @@ class FakeSerialPort : public ISerialPort {
         return static_cast<std::size_t>(0);
     }
 
-    void setAutoAck(bool enabled) {
-        std::scoped_lock lock(handlerMutex);
-        autoAck = enabled;
-    }
-
     bool waitForMoveCount(std::size_t expectedCount, std::chrono::milliseconds timeout) {
         std::unique_lock lock(moveMutex);
         return moveCv.wait_for(lock, timeout, [&] { return moveCommands.size() >= expectedCount; });
@@ -125,7 +118,6 @@ class FakeSerialPort : public ISerialPort {
 
   private:
     bool opened = false;
-    bool autoAck = true;
 
     std::mutex handlerMutex;
     DataReceivedHandler handler;
@@ -363,7 +355,7 @@ TEST(MakcuControllerTest, ClampsMoveCommandAndCarriesOverflowAcrossSends) {
     EXPECT_EQ(summedDx, 300);
 }
 
-TEST(MakcuControllerTest, KeepsTinyRemainderAcrossIdleGap) {
+TEST(MakcuControllerTest, DropsRemainderAfterTtlGap) {
     auto serial = std::make_unique<FakeSerialPort>();
     auto* serialPtr = serial.get();
     auto scanner = std::make_unique<StaticDeviceScanner>();
@@ -372,7 +364,22 @@ TEST(MakcuControllerTest, KeepsTinyRemainderAcrossIdleGap) {
     ASSERT_TRUE(controller.connect().has_value());
 
     ASSERT_TRUE(controller.move(0.2F, 0.0F).has_value());
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(220));
+    ASSERT_TRUE(controller.move(0.9F, 0.0F).has_value());
+
+    EXPECT_FALSE(serialPtr->waitForMoveCount(1, std::chrono::milliseconds(80)));
+}
+
+TEST(MakcuControllerTest, KeepsRemainderWithinTtl) {
+    auto serial = std::make_unique<FakeSerialPort>();
+    auto* serialPtr = serial.get();
+    auto scanner = std::make_unique<StaticDeviceScanner>();
+
+    MakcuController controller(std::move(serial), std::move(scanner));
+    ASSERT_TRUE(controller.connect().has_value());
+
+    ASSERT_TRUE(controller.move(0.2F, 0.0F).has_value());
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     ASSERT_TRUE(controller.move(0.9F, 0.0F).has_value());
 
     ASSERT_TRUE(serialPtr->waitForMoveCount(1, std::chrono::milliseconds(100)));

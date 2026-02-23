@@ -69,6 +69,7 @@ constexpr auto kAckTimeout = std::chrono::milliseconds(20);
 constexpr std::string_view kAckPrompt = ">>> ";
 constexpr std::size_t kAckBufferLimit = 1024;
 constexpr int kPerCommandClamp = 127;
+constexpr auto kRemainderTtl = std::chrono::milliseconds(200);
 
 std::array<std::uint8_t, 9> buildBaudRateChangeFrame(std::uint32_t baudRate) {
     return {
@@ -159,6 +160,7 @@ std::expected<void, std::error_code> MakcuController::connect() {
         pending = false;
         pendingCommand = {};
         remainder = {0.0F, 0.0F};
+        lastInputTime = std::chrono::steady_clock::now();
     }
     {
         std::scoped_lock lock(ackMutex);
@@ -199,6 +201,7 @@ std::expected<void, std::error_code> MakcuController::disconnect() {
         pending = false;
         pendingCommand = {};
         remainder = {0.0F, 0.0F};
+        lastInputTime = std::chrono::steady_clock::now();
     }
     {
         std::scoped_lock lock(ackMutex);
@@ -229,11 +232,14 @@ std::expected<void, std::error_code> MakcuController::move(float dx, float dy) {
     bool notifySender = false;
     {
         std::scoped_lock lock(commandMutex);
+        const auto now = std::chrono::steady_clock::now();
+        resetRemainderIfTtlExpired(now);
         const std::expected<void, std::error_code> accumulationResult =
             applyAccumulationAndQueue(dx, dy);
         if (!accumulationResult) {
             return std::unexpected(accumulationResult.error());
         }
+        lastInputTime = now;
         notifySender = pending;
     }
 
@@ -274,6 +280,13 @@ std::expected<void, std::error_code> MakcuController::applyAccumulationAndQueue(
     pendingCommand.dy += intPartY;
     pending = pendingCommand.dx != 0 || pendingCommand.dy != 0;
     return {};
+}
+
+void MakcuController::resetRemainderIfTtlExpired(std::chrono::steady_clock::time_point now) {
+    if (now - lastInputTime <= kRemainderTtl) {
+        return;
+    }
+    remainder = {0.0F, 0.0F};
 }
 
 void MakcuController::splitAndRequeueOverflow(MoveCommand& command) {

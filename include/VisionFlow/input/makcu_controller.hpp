@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <expected>
@@ -56,6 +57,7 @@ class MakcuController final : public IMouseController {
     [[nodiscard]] std::expected<void, std::error_code> sendBaudChangeFrame(std::uint32_t baudRate);
     [[nodiscard]] std::expected<void, std::error_code> applyAccumulationAndQueue(float dx,
                                                                                  float dy);
+    void resetRemainderIfTtlExpired(std::chrono::steady_clock::time_point now);
     void splitAndRequeueOverflow(MoveCommand& command);
     [[nodiscard]] bool waitAndPopCommand(const std::stop_token& stopToken, MoveCommand& command);
     [[nodiscard]] bool waitUntilSendAllowed(const std::stop_token& stopToken);
@@ -80,6 +82,7 @@ class MakcuController final : public IMouseController {
     bool pending = false;
     MoveCommand pendingCommand;
     std::array<float, 2> remainder{0.0F, 0.0F};
+    std::chrono::steady_clock::time_point lastInputTime = std::chrono::steady_clock::now();
 
     std::condition_variable ackCv;
     std::mutex ackMutex;
