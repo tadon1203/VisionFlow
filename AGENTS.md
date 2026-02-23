@@ -19,15 +19,11 @@
 - Install git hooks: `python.exe scripts/install-hooks.py`
 - Run binary (Windows preset output): `./build/RelWithDebInfo/VisionFlow.exe`
 
-## Project Structure
-- `include/`: Public headers and interface contracts.
-- `src/`: Implementations.
-- `third_party/`: External dependencies; do not modify unless explicitly requested.
-- `build/`: Generated artifacts only.
-
 ## Boundaries
 ### Always Do
 - Read `.clang-format` and `.clang-tidy` before code changes.
+- Read `docs/ARCHITECTURE.md` before changing architecture boundaries or ownership flows.
+- Update `docs/ARCHITECTURE.md` when architecture boundaries or ownership flows change.
 - Keep changes scoped to the user request.
 - Preserve existing architecture boundaries and interfaces when possible.
 - Add logs for critical state transitions and failures in runtime-critical paths.
@@ -68,7 +64,8 @@
 - Do not revert unrelated user changes.
 - Minimize diff size; avoid drive-by edits.
 - Keep commit-ready code deterministic and reviewable.
-- Prefer branch-based development unless a change is explicitly allowed for direct `main` commits.
+- Always use pull requests for integration; direct integration to `main` is not allowed.
+- Use branch-based development for all changes; do not commit directly to `main`.
 - For branch-based changes, merge into `main` using **Squash and Merge**.
 - Do not use merge commits or rebase-and-merge for normal branch integration.
 - Before squash merging, ensure the PR title already matches Conventional Commits format.
@@ -77,11 +74,9 @@
 - If formatting updates files, the hook rewrites them and blocks commit once; re-stage and commit again.
 
 ### Main Direct Commit Policy
-- Direct commits to `main` are allowed only for **lightweight** `docs/`, `chore/`, and `build/` changes.
-- "Lightweight" means text-only or non-behavioral updates (for example typo fixes, comment wording, small config housekeeping).
-- If behavior, logic, architecture, API contracts, or runtime semantics may change, use a branch.
-- When uncertain, choose branch-based development.
-- If a change goes through a PR (including `docs/`, `chore/`, `build/`), use **Squash and Merge**.
+- Direct commits to `main` are forbidden.
+- All changes must always go through a pull request and **Squash and Merge**.
+- If branch protection blocks direct push, do not bypass with policy exceptions.
 
 ### Branch Naming Convention
 - Use: `prefix/short-description`
@@ -120,17 +115,19 @@ gh pr view --json body --jq .body
 ```
 
 ### Prefix Policy Matrix
-| Prefix | Direct `main` Commit | Branch Usage | Purpose |
-| --- | --- | --- | --- |
-| `docs/` | Allowed (lightweight) | Allowed (large) | Documentation and comment updates |
-| `chore/` | Allowed (lightweight) | Allowed (large) | Housekeeping, config files, `.gitignore` |
-| `build/` | Allowed (lightweight) | Allowed (large) | Build configuration, `build.py`, presets |
-| `feat/` | Forbidden | Required | New features |
-| `fix/` | Forbidden | Required | Bug fixes |
-| `refactor/` | Forbidden | Required | Code restructuring without feature intent |
-| `perf/` | Forbidden | Required | Performance improvements |
-| `test/` | Forbidden | Required | Test additions and updates |
-| `ci/` | Forbidden | Required | CI pipeline changes |
+All prefixes follow the same workflow rule: direct `main` commit is forbidden, and branch + PR are required.
+
+| Prefix | Purpose |
+| --- | --- |
+| `docs/` | Documentation and comment updates |
+| `chore/` | Housekeeping, config files, `.gitignore` |
+| `build/` | Build configuration, `build.py`, presets |
+| `feat/` | New features |
+| `fix/` | Bug fixes |
+| `refactor/` | Code restructuring without feature intent |
+| `perf/` | Performance improvements |
+| `test/` | Test additions and updates |
+| `ci/` | CI pipeline changes |
 
 ## Commit Message Convention
 - Follow **Conventional Commits** for all commits.
@@ -153,23 +150,28 @@ gh pr view --json body --jq .body
 
 ### 1. Architectural Integrity
 - **SOLID**: Maintain focused responsibilities. Prefer clear abstractions (interfaces/abstract classes) so modules can evolve without cascading edits.
+- **LSP (Liskov Substitution Principle)**: Implementations must remain substitutable for their interfaces. Do not introduce hidden preconditions or behavior that violates interface expectations.
 - **Composition over Inheritance**: Favor assembling behavior from small, decoupled components.
 - **DRY (Don't Repeat Yourself)**: Keep each piece of logic in one authoritative place.
 - **Platform Boundary Isolation**: Isolate platform-specific dependencies behind explicit boundaries. Keep upper layers dependent on abstractions, not direct OS/API calls.
 
 ### 2. Resource, Performance, and Constants
 - **RAII (Resource Acquisition Is Initialization)**: Bind resource lifecycles (memory, mutexes, handles) to object lifetimes.
+- **Rule of Zero**: Prefer designs where ownership and cleanup are handled by standard library types so custom special member functions are unnecessary. Use explicit `= delete` or custom special members only when ownership semantics require it.
 - **Value Semantics**: Prefer value/reference semantics where practical.
 - **Hot Path Allocation Rule**: Avoid unnecessary dynamic allocation in hot paths. Reuse buffers and keep per-iteration overhead predictable.
 - **Magic Number Rule (`constexpr`)**: Replace magic numbers with named `constexpr` constants.
 
 ### 3. Simplicity & Pragmatism
 - **KISS (Keep It Simple, Stupid)**: In this project, "simple" means code that a reader can understand correctly in the shortest time. Choose the design with the clearest intent and no unnecessary structural elements.
+- **Avoid Over-Engineering**: Do not add layered abstractions based only on hypothetical future needs.
+- **Linear Logic**: Prefer boring, explicit control flow over clever or overly compact constructs when readability is better.
 - **YAGNI (You Aren't Gonna Need It)**: Do not add hypothetical extension points.
 - **Zero-Overhead Principle**: Do not pay runtime cost for unused abstractions.
 
 ### 4. Safety & Robustness
 - **Interface Safety**: Make APIs easy to use correctly and hard to misuse.
+- **No-Discard Rule**: Functions with failure-prone or side-effectful outcomes should return values that must be checked (use `[[nodiscard]]` where appropriate). If discarding is intentional, do it explicitly (for example `static_cast<void>(result)`).
 - **State Machine Discipline**: Manage mutable state with explicit `enum class` state models and validated transitions.
 - **Thread Ownership & Shutdown Rule**: Assign each thread a single owner and enforce explicit shutdown sequencing (`request stop -> wake -> join`).
 - **Principle of Least Astonishment**: Keep behavior intuitive and consistent.
@@ -195,6 +197,7 @@ gh pr view --json body --jq .body
   - Third-party library headers
   - OS/platform headers
 - Use `"..."` for project headers in this repository.
+- **Self-contained Headers**: Every header must compile in isolation with its own required includes or forward declarations, and must not depend on include order side effects.
 - Path base rules for project headers:
   - Public headers: write paths from `include/` root.
   - Private headers: write paths from `src/` root.

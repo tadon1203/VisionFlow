@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: "0 18 * * *"
 
 defaults:
   run:
@@ -16,6 +18,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -44,7 +48,28 @@ jobs:
           echo "$llvm_bin_dir" >> "$GITHUB_PATH"
 
       - name: Run clang-format check
-        run: python.exe scripts/run-clang-format.py --all --check
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            diff_range="${{ github.event.pull_request.base.sha }}...${{ github.sha }}"
+            git diff --unified=0 "$diff_range" > /tmp/changed.diff
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+              git diff-tree --root --unified=0 --no-commit-id -r "${{ github.sha }}" > /tmp/changed.diff
+            else
+              diff_range="${{ github.event.before }}...${{ github.sha }}"
+              git diff --unified=0 "$diff_range" > /tmp/changed.diff
+            fi
+          else
+            echo "Skipping format diff check for event: ${{ github.event_name }}"
+            exit 0
+          fi
+
+          if [[ ! -s /tmp/changed.diff ]]; then
+            echo "No changed lines detected for clang-format diff run"
+            exit 0
+          fi
+
+          cat /tmp/changed.diff | python.exe scripts/run-clang-format.py --diff --check
 
   build-test-lint:
     runs-on: windows-latest
@@ -86,24 +111,56 @@ jobs:
       - name: Run clang-tidy
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            if git rev-parse --verify HEAD^1 >/dev/null 2>&1; then
-              diff_range="HEAD^1..HEAD"
-            else
-              python.exe scripts/run-clang-tidy.py --all --config RelWithDebInfo
-              exit 0
-            fi
+            diff_range="${{ github.event.pull_request.base.sha }}...${{ github.sha }}"
+            git diff --unified=0 "$diff_range" > /tmp/changed.diff
           else
             if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
-              python.exe scripts/run-clang-tidy.py --all --config RelWithDebInfo
-              exit 0
+              git diff-tree --root --unified=0 --no-commit-id -r "${{ github.sha }}" > /tmp/changed.diff
+            else
+              diff_range="${{ github.event.before }}...${{ github.sha }}"
+              git diff --unified=0 "$diff_range" > /tmp/changed.diff
             fi
-            diff_range="${{ github.event.before }}...${{ github.sha }}"
           fi
 
-          git diff --unified=0 "$diff_range" > /tmp/changed.diff
           if [[ ! -s /tmp/changed.diff ]]; then
             echo "No changed lines detected for clang-tidy diff run"
             exit 0
           fi
 
           cat /tmp/changed.diff | python.exe scripts/run-clang-tidy.py --diff --config RelWithDebInfo
+
+  lint-nightly-all:
+    if: github.event_name == 'schedule'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: "4.0.0"
+
+      - name: Ensure LLVM and Ninja
+        run: |
+          if where.exe clang-format > /dev/null 2>&1 && \
+             where.exe clang-tidy > /dev/null 2>&1 && \
+             where.exe ninja > /dev/null 2>&1; then
+            echo "LLVM and Ninja already available"
+          else
+            choco install llvm ninja -y
+          fi
+
+      - name: Add LLVM to PATH
+        run: |
+          llvm_path="$(where.exe clang-format | head -n 1 | tr -d '\r')"
+          llvm_bin_dir="$(dirname "$llvm_path")"
+          echo "$llvm_bin_dir" >> "$GITHUB_PATH"
+
+      - name: Run clang-tidy all
+        run: python.exe scripts/run-clang-tidy.py --all --config RelWithDebInfo
