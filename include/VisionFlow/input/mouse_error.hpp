@@ -15,11 +15,13 @@ enum class MouseError : std::uint8_t {
     ReadFailed,
     HandshakeTimeout,
     ProtocolError,
+    NotConnected,
     ThreadNotRunning,
 };
 
 [[nodiscard]] const std::error_category& mouseErrorCategory() noexcept;
 [[nodiscard]] std::error_code makeErrorCode(MouseError error) noexcept;
+[[nodiscard]] bool shouldRetryConnectError(const std::error_code& error) noexcept;
 
 } // namespace vf
 

@@ -1,6 +1,7 @@
 add_executable(VisionFlowUnitTests
     unit/core/app_test.cpp
     unit/input/makcu_controller_test.cpp
+    unit/input/mouse_error_test.cpp
     ../src/core/app.cpp
     ../src/core/logger.cpp
     ../src/input/makcu_controller.cpp

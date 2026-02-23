@@ -16,6 +16,7 @@ namespace {
 class MockMouseController : public IMouseController {
   public:
     MOCK_METHOD((std::expected<void, std::error_code>), connect, (), (override));
+    MOCK_METHOD(bool, shouldRetryConnect, (const std::error_code& error), (const, override));
     MOCK_METHOD((std::expected<void, std::error_code>), disconnect, (), (override));
     MOCK_METHOD((std::expected<void, std::error_code>), move, (int dx, int dy), (override));
 };
@@ -31,7 +32,26 @@ TEST(AppTest, RunReturnsFalseWhenConnectFails) {
 
     EXPECT_CALL(*mockPtr, connect())
         .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
-    EXPECT_CALL(*mockPtr, disconnect()).Times(0);
+    EXPECT_CALL(*mockPtr, shouldRetryConnect(testing::_)).WillOnce(testing::Return(false));
+    EXPECT_CALL(*mockPtr, disconnect())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+
+    App app(std::move(mock));
+    EXPECT_FALSE(app.run());
+}
+
+TEST(AppTest, RunRetriesConnectForRecoverableErrorThenFails) {
+    auto mock = std::make_unique<testing::StrictMock<MockMouseController>>();
+    auto* mockPtr = mock.get();
+
+    EXPECT_CALL(*mockPtr, connect())
+        .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::timed_out))))
+        .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
+    EXPECT_CALL(*mockPtr, shouldRetryConnect(testing::_))
+        .WillOnce(testing::Return(true))
+        .WillOnce(testing::Return(false));
+    EXPECT_CALL(*mockPtr, disconnect())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
 
     App app(std::move(mock));
     EXPECT_FALSE(app.run());
