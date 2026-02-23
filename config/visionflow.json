@@ -4,5 +4,8 @@
   },
   "makcu": {
     "remainderTtlMs": 200
+  },
+  "capture": {
+    "preferredDisplayIndex": 0
   }
 }

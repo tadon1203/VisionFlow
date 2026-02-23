@@ -58,7 +58,9 @@ if (WIN32)
         WIN32_LEAN_AND_MEAN
     )
     target_link_libraries(${PROJECT_NAME} PRIVATE
-        setupapi
+        d3d11
+        dxgi
+        windowsapp
     )
 endif()
 
