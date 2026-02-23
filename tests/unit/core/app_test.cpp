@@ -1,11 +1,14 @@
+#include "VisionFlow/core/app.hpp"
+
 #include <expected>
 #include <memory>
 #include <system_error>
+#include <utility>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "VisionFlow/core/app.hpp"
+#include "VisionFlow/input/i_mouse_controller.hpp"
 
 namespace vf {
 namespace {

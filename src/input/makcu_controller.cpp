@@ -4,9 +4,13 @@
 #include <charconv>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <expected>
 #include <memory>
+#include <mutex>
 #include <span>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -14,9 +18,9 @@
 #include <utility>
 
 #include "VisionFlow/core/logger.hpp"
+#include "VisionFlow/input/i_device_scanner.hpp"
+#include "VisionFlow/input/i_serial_port.hpp"
 #include "VisionFlow/input/mouse_error.hpp"
-#include "VisionFlow/input/win32_device_scanner.hpp"
-#include "VisionFlow/input/win32_serial_port.hpp"
 
 namespace vf {
 
@@ -58,10 +62,6 @@ std::expected<std::size_t, std::error_code> buildMoveCommand(int dx, int dy,
 
 } // namespace
 
-MakcuController::MakcuController()
-    : serialPort(std::make_unique<Win32SerialPort>()),
-      deviceScanner(std::make_unique<Win32DeviceScanner>()) {}
-
 MakcuController::MakcuController(std::unique_ptr<ISerialPort> serialPort,
                                  std::unique_ptr<IDeviceScanner> deviceScanner)
     : serialPort(std::move(serialPort)), deviceScanner(std::move(deviceScanner)) {}
@@ -76,7 +76,7 @@ MakcuController::~MakcuController() {
 
 std::expected<void, std::error_code> MakcuController::connect() {
     {
-        std::lock_guard<std::mutex> lock(stateMutex);
+        std::scoped_lock lock(stateMutex);
         if (state == ControllerState::Ready) {
             return {};
         }
@@ -84,7 +84,7 @@ std::expected<void, std::error_code> MakcuController::connect() {
     }
 
     if (!serialPort || !deviceScanner) {
-        std::lock_guard<std::mutex> lock(stateMutex);
+        std::scoped_lock lock(stateMutex);
         state = ControllerState::Fault;
         return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
     }
@@ -92,7 +92,7 @@ std::expected<void, std::error_code> MakcuController::connect() {
     const std::expected<std::string, std::error_code> portResult =
         deviceScanner->findPortByHardwareId(kTargetHardwareId);
     if (!portResult) {
-        std::lock_guard<std::mutex> lock(stateMutex);
+        std::scoped_lock lock(stateMutex);
         state = ControllerState::Idle;
         return std::unexpected(portResult.error());
     }
@@ -100,7 +100,7 @@ std::expected<void, std::error_code> MakcuController::connect() {
     const std::expected<void, std::error_code> openResult =
         serialPort->open(portResult.value(), kInitialBaudRate);
     if (!openResult) {
-        std::lock_guard<std::mutex> lock(stateMutex);
+        std::scoped_lock lock(stateMutex);
         state = ControllerState::Idle;
         return std::unexpected(openResult.error());
     }
@@ -112,14 +112,14 @@ std::expected<void, std::error_code> MakcuController::connect() {
             VF_WARN("MakcuController close after handshake failure failed: {}",
                     closeResult.error().message());
         }
-        std::lock_guard<std::mutex> lock(stateMutex);
+        std::scoped_lock lock(stateMutex);
         state = ControllerState::Idle;
         return std::unexpected(handshakeResult.error());
     }
 
     sendThread = std::jthread([this](const std::stop_token& st) { senderLoop(st); });
     {
-        std::lock_guard<std::mutex> lock(stateMutex);
+        std::scoped_lock lock(stateMutex);
         state = ControllerState::Ready;
     }
 
@@ -129,7 +129,7 @@ std::expected<void, std::error_code> MakcuController::connect() {
 
 std::expected<void, std::error_code> MakcuController::disconnect() {
     {
-        std::lock_guard<std::mutex> lock(stateMutex);
+        std::scoped_lock lock(stateMutex);
         if (state == ControllerState::Idle) {
             return {};
         }
@@ -143,7 +143,7 @@ std::expected<void, std::error_code> MakcuController::disconnect() {
     }
 
     {
-        std::lock_guard<std::mutex> lock(commandMutex);
+        std::scoped_lock lock(commandMutex);
         pending = false;
         pendingCommand = {};
     }
@@ -151,7 +151,7 @@ std::expected<void, std::error_code> MakcuController::disconnect() {
     const std::expected<void, std::error_code> closeResult =
         serialPort ? serialPort->close() : std::expected<void, std::error_code>{};
     {
-        std::lock_guard<std::mutex> lock(stateMutex);
+        std::scoped_lock lock(stateMutex);
         state = closeResult ? ControllerState::Idle : ControllerState::Fault;
     }
 
@@ -160,14 +160,14 @@ std::expected<void, std::error_code> MakcuController::disconnect() {
 
 std::expected<void, std::error_code> MakcuController::move(int dx, int dy) {
     {
-        std::lock_guard<std::mutex> lock(stateMutex);
+        std::scoped_lock lock(stateMutex);
         if (state != ControllerState::Ready) {
             return std::unexpected(makeErrorCode(MouseError::ThreadNotRunning));
         }
     }
 
     {
-        std::lock_guard<std::mutex> lock(commandMutex);
+        std::scoped_lock lock(commandMutex);
         pendingCommand.dx = dx;
         pendingCommand.dy = dy;
         pending = true;

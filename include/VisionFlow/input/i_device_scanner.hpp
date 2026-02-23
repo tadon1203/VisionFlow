@@ -15,8 +15,8 @@ class IDeviceScanner {
     IDeviceScanner& operator=(IDeviceScanner&&) = default;
     virtual ~IDeviceScanner() = default;
 
-    [[nodiscard]] virtual std::expected<std::string, std::error_code> findPortByHardwareId(
-        const std::string& hardwareId) const = 0;
+    [[nodiscard]] virtual std::expected<std::string, std::error_code>
+    findPortByHardwareId(const std::string& hardwareId) const = 0;
 };
 
 } // namespace vf

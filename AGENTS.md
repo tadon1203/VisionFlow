@@ -14,6 +14,9 @@
 - Build + test (Release): `python.exe build.py --config Release`
 - Build + test (RelWithDebInfo): `python.exe build.py --config RelWithDebInfo`
 - Build only (skip tests): `python.exe build.py --no-test`
+- Lint (all, default Debug DB): `python.exe scripts/run-clang-tidy.py --all`
+- Lint (diff, default Debug DB): `git diff --cached | python.exe scripts/run-clang-tidy.py --diff`
+- Install git hooks: `python.exe scripts/install-hooks.py`
 - Run binary (Windows preset output): `./build/RelWithDebInfo/VisionFlow.exe`
 
 ## Project Structure
@@ -69,6 +72,9 @@
 - For branch-based changes, merge into `main` using **Squash and Merge**.
 - Do not use merge commits or rebase-and-merge for normal branch integration.
 - Before squash merging, ensure the PR title already matches Conventional Commits format.
+- Enable repository-managed hooks with `python.exe scripts/install-hooks.py` after clone/setup.
+- Pre-commit runs diff-based format check via `run-clang-format.py --diff`.
+- If formatting updates files, the hook rewrites them and blocks commit once; re-stage and commit again.
 
 ### Main Direct Commit Policy
 - Direct commits to `main` are allowed only for **lightweight** `docs/`, `chore/`, and `build/` changes.
@@ -82,6 +88,36 @@
 - Use lowercase and kebab-case for `short-description`.
 - Keep `short-description` concise and descriptive.
 - Allowed prefixes: `docs/`, `chore/`, `feat/`, `fix/`, `refactor/`, `perf/`, `build/`, `test/`, `ci/`.
+
+### Pull Request Policy
+- PR descriptions MUST use `.github/PULL_REQUEST_TEMPLATE.md`.
+- `Summary` MUST describe intent and scope of the change concisely.
+- `Validation Results` MUST be updated based on actual execution.
+- If a validation item is not executed, include a short reason in the PR description.
+- For `--diff` validators, pass diff input via stdin (for example `git diff --cached | ...`).
+- PR titles MUST follow Conventional Commits (same rule as squash commit titles).
+
+### PR Body Safety Rule
+- When creating or editing PR descriptions with GitHub CLI, DO NOT pass markdown directly via `--body`.
+- Use `--body-file <path>` for `gh pr create` and `gh pr edit`.
+- Generate body files with single-quoted heredoc (`cat <<'EOF'`) to prevent shell expansion.
+- Treat backticks, `$()`, and `$VAR` as expansion-sensitive content and always keep them in body files.
+- After creating or updating a PR, verify the rendered body with `gh pr view --json body`.
+- If `gh pr edit` fails due to environment/API constraints, `gh api repos/<owner>/<repo>/pulls/<number> -X PATCH --raw-field body=...` is an allowed fallback.
+
+Example:
+```bash
+cat > /tmp/pr_body.md <<'EOF'
+## Summary
+- ...
+
+## Validation Results
+- [x] `python.exe build.py` (Build & Test OK)
+EOF
+
+gh pr create --base main --head <branch> --title "<title>" --body-file /tmp/pr_body.md
+gh pr view --json body --jq .body
+```
 
 ### Prefix Policy Matrix
 | Prefix | Direct `main` Commit | Branch Usage | Purpose |
@@ -144,3 +180,28 @@
 - **Boolean Exception (Formal)**: Boolean variables are a formal exception to noun-only naming. State words in `camelBack` (for example `empty`, `connected`, `pending`) are allowed; avoid `is`/`has` prefixes when context is clear.
 - **Function Naming Rules**: Use descriptive verb phrases in `lowerCamelCase`. Prefer imperative or direct action-oriented forms.
 - **Exceptions**: Small-scope counters and iterators (for example `i`, `j`) are permitted.
+
+### 6. Include Guidelines
+- Keep include blocks grouped in this order:
+  1. Related header (matching header for the current source file, e.g. `foo.cc` -> `foo.h`)
+  2. C system headers (for example `<stdint.h>`, `<stdlib.h>`)
+  3. C++ standard library headers (for example `<vector>`, `<string>`, `<expected>`)
+  4. Third-party and OS headers (for example `<spdlog/spdlog.h>`, `<gtest/gtest.h>`, `<Windows.h>`, `<unistd.h>`)
+  5. Project headers
+- Insert one blank line between include groups.
+- Use `<...>` for:
+  - C++ standard library headers
+  - C standard library headers
+  - Third-party library headers
+  - OS/platform headers
+- Use `"..."` for project headers in this repository.
+- Path base rules for project headers:
+  - Public headers: write paths from `include/` root.
+  - Private headers: write paths from `src/` root.
+- Public Header Platform Independence:
+  - Public headers under `include/` MUST remain platform-independent.
+  - Do not include platform/OS headers (for example `<Windows.h>`, `<SetupAPI.h>`, `<unistd.h>`) from public headers.
+  - Do not expose platform-specific types/macros/constants in public API signatures.
+  - Keep platform-specific includes and concrete implementations in `src/` private headers/sources, behind abstract interfaces.
+- Example project include path:
+  - `"VisionFlow/input/i_serial_port.hpp"`

@@ -19,15 +19,15 @@ class ISerialPort {
     virtual ~ISerialPort() = default;
 
     [[nodiscard]] virtual std::expected<void, std::error_code> open(const std::string& portName,
-                                                                     std::uint32_t baudRate) = 0;
+                                                                    std::uint32_t baudRate) = 0;
     [[nodiscard]] virtual std::expected<void, std::error_code> close() = 0;
-    [[nodiscard]] virtual std::expected<void, std::error_code> configure(
-        std::uint32_t baudRate) = 0;
+    [[nodiscard]] virtual std::expected<void, std::error_code>
+    configure(std::uint32_t baudRate) = 0;
     [[nodiscard]] virtual std::expected<void, std::error_code> flush() = 0;
-    [[nodiscard]] virtual std::expected<void, std::error_code> write(
-        std::span<const std::uint8_t> payload) = 0;
-    [[nodiscard]] virtual std::expected<std::size_t, std::error_code> readSome(
-        std::span<std::uint8_t> buffer) = 0;
+    [[nodiscard]] virtual std::expected<void, std::error_code>
+    write(std::span<const std::uint8_t> payload) = 0;
+    [[nodiscard]] virtual std::expected<std::size_t, std::error_code>
+    readSome(std::span<std::uint8_t> buffer) = 0;
 };
 
 } // namespace vf

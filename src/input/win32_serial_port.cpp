@@ -1,8 +1,12 @@
-#include "VisionFlow/input/win32_serial_port.hpp"
+#include "input/win32_serial_port.hpp"
 
 #include <cstddef>
 #include <cstdint>
+#include <expected>
+#include <mutex>
+#include <span>
 #include <string>
+#include <system_error>
 
 #include "VisionFlow/input/mouse_error.hpp"
 
@@ -14,18 +18,18 @@ Win32SerialPort::~Win32SerialPort() {
 }
 
 std::string Win32SerialPort::makeComPath(const std::string& portName) {
-    return "\\\\.\\" + portName;
+    return R"(\\.\)" + portName;
 }
 
 std::expected<void, std::error_code> Win32SerialPort::open(const std::string& portName,
-                                                            std::uint32_t baudRate) {
-#if !defined(_WIN32)
+                                                           std::uint32_t baudRate) {
+#ifndef _WIN32
     static_cast<void>(portName);
     static_cast<void>(baudRate);
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
 #else
     {
-        std::lock_guard<std::mutex> lock(handleMutex);
+        std::scoped_lock lock(handleMutex);
 
         if (opened) {
             return {};
@@ -37,7 +41,7 @@ std::expected<void, std::error_code> Win32SerialPort::open(const std::string& po
             return std::unexpected(makeErrorCode(MouseError::PortOpenFailed));
         }
 
-        COMMTIMEOUTS timeouts {};
+        COMMTIMEOUTS timeouts{};
         timeouts.ReadIntervalTimeout = MAXDWORD;
         timeouts.ReadTotalTimeoutConstant = 0;
         timeouts.ReadTotalTimeoutMultiplier = 0;
@@ -71,10 +75,10 @@ std::expected<void, std::error_code> Win32SerialPort::open(const std::string& po
 }
 
 std::expected<void, std::error_code> Win32SerialPort::close() {
-#if !defined(_WIN32)
+#ifndef _WIN32
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
 #else
-    std::lock_guard<std::mutex> lock(handleMutex);
+    std::scoped_lock lock(handleMutex);
 
     if (!opened) {
         return {};
@@ -91,17 +95,17 @@ std::expected<void, std::error_code> Win32SerialPort::close() {
 }
 
 std::expected<void, std::error_code> Win32SerialPort::configure(std::uint32_t baudRate) {
-#if !defined(_WIN32)
+#ifndef _WIN32
     static_cast<void>(baudRate);
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
 #else
-    std::lock_guard<std::mutex> lock(handleMutex);
+    std::scoped_lock lock(handleMutex);
 
     if (!opened || serialHandle == INVALID_HANDLE_VALUE) {
         return std::unexpected(makeErrorCode(MouseError::PortOpenFailed));
     }
 
-    DCB dcb {};
+    DCB dcb{};
     dcb.DCBlength = sizeof(DCB);
 
     if (GetCommState(serialHandle, &dcb) == FALSE) {
@@ -124,10 +128,10 @@ std::expected<void, std::error_code> Win32SerialPort::configure(std::uint32_t ba
 }
 
 std::expected<void, std::error_code> Win32SerialPort::flush() {
-#if !defined(_WIN32)
+#ifndef _WIN32
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
 #else
-    std::lock_guard<std::mutex> lock(handleMutex);
+    std::scoped_lock lock(handleMutex);
 
     if (!opened || serialHandle == INVALID_HANDLE_VALUE) {
         return std::unexpected(makeErrorCode(MouseError::PortOpenFailed));
@@ -141,22 +145,20 @@ std::expected<void, std::error_code> Win32SerialPort::flush() {
 #endif
 }
 
-std::expected<void, std::error_code> Win32SerialPort::write(
-    std::span<const std::uint8_t> payload) {
-#if !defined(_WIN32)
+std::expected<void, std::error_code> Win32SerialPort::write(std::span<const std::uint8_t> payload) {
+#ifndef _WIN32
     static_cast<void>(payload);
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
 #else
-    std::lock_guard<std::mutex> lock(handleMutex);
+    std::scoped_lock lock(handleMutex);
 
     if (!opened || serialHandle == INVALID_HANDLE_VALUE) {
         return std::unexpected(makeErrorCode(MouseError::PortOpenFailed));
     }
 
     DWORD bytesWritten = 0;
-    const BOOL writeCompleted =
-        WriteFile(serialHandle, payload.data(), static_cast<DWORD>(payload.size()), &bytesWritten,
-                  nullptr);
+    const BOOL writeCompleted = WriteFile(
+        serialHandle, payload.data(), static_cast<DWORD>(payload.size()), &bytesWritten, nullptr);
     if (writeCompleted == FALSE || static_cast<std::size_t>(bytesWritten) != payload.size()) {
         return std::unexpected(makeErrorCode(MouseError::WriteFailed));
     }
@@ -165,22 +167,21 @@ std::expected<void, std::error_code> Win32SerialPort::write(
 #endif
 }
 
-std::expected<std::size_t, std::error_code> Win32SerialPort::readSome(
-    std::span<std::uint8_t> buffer) {
-#if !defined(_WIN32)
+std::expected<std::size_t, std::error_code>
+Win32SerialPort::readSome(std::span<std::uint8_t> buffer) {
+#ifndef _WIN32
     static_cast<void>(buffer);
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
 #else
-    std::lock_guard<std::mutex> lock(handleMutex);
+    std::scoped_lock lock(handleMutex);
 
     if (!opened || serialHandle == INVALID_HANDLE_VALUE) {
         return std::unexpected(makeErrorCode(MouseError::PortOpenFailed));
     }
 
     DWORD bytesRead = 0;
-    const BOOL readCompleted =
-        ReadFile(serialHandle, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead,
-                 nullptr);
+    const BOOL readCompleted = ReadFile(serialHandle, buffer.data(),
+                                        static_cast<DWORD>(buffer.size()), &bytesRead, nullptr);
     if (readCompleted == FALSE) {
         return std::unexpected(makeErrorCode(MouseError::ReadFailed));
     }

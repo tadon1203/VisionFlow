@@ -15,6 +15,12 @@ CONFIG_TO_BUILD_PRESET = {
     "RelWithDebInfo": "relwithdebinfo",
 }
 
+CONFIG_TO_CONFIGURE_PRESET = {
+    "Debug": "debug-configure",
+    "Release": "release-configure",
+    "RelWithDebInfo": "relwithdebinfo-configure",
+}
+
 
 def run_command(command: list[str]) -> None:
     print("+", " ".join(command))
@@ -98,21 +104,21 @@ def main() -> None:
     args = parse_args()
     cmake_executable = resolve_cmake_executable()
     ctest_executable = resolve_ctest_executable(cmake_executable)
+    configure_preset = CONFIG_TO_CONFIGURE_PRESET[args.config]
     build_preset = CONFIG_TO_BUILD_PRESET[args.config]
 
-    configure_command = [cmake_executable, "--preset", "default"]
+    configure_command = [cmake_executable, "--preset", configure_preset]
     run_command(configure_command)
 
     build_command = [cmake_executable, "--build", "--preset", build_preset]
     run_command(build_command)
 
     if args.runTests:
+        test_dir = str(Path("build") / args.config.lower())
         test_command = [
             ctest_executable,
             "--test-dir",
-            "build",
-            "-C",
-            args.config,
+            test_dir,
             "--output-on-failure",
         ]
         run_command(test_command)

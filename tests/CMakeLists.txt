@@ -11,6 +11,7 @@ add_executable(VisionFlowUnitTests
 
 target_include_directories(VisionFlowUnitTests PRIVATE
     ../include
+    ../src
 )
 
 target_link_libraries(VisionFlowUnitTests PRIVATE

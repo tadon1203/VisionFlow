@@ -5,11 +5,15 @@
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <vector>
 
+#include <spdlog/common.h>
+#include <spdlog/logger.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -23,7 +27,7 @@ std::string makeLogFileName() {
     const auto now = std::chrono::system_clock::now();
     const std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
 
-    std::tm localTm {};
+    std::tm localTm{};
     const bool conversion = (localtime_s(&localTm, &nowTime) == 0);
     if (!conversion) {
         const auto secondsSinceEpoch =
@@ -40,7 +44,7 @@ std::string makeLogFileName() {
 
 void Logger::init() {
     static std::mutex initMutex;
-    std::lock_guard<std::mutex> lock(initMutex);
+    std::scoped_lock lock(initMutex);
 
     if (coreLogger) {
         return;
@@ -51,7 +55,7 @@ void Logger::init() {
     auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     sinks.push_back(consoleSink);
 
-    const std::filesystem::path logDir {"logs"};
+    const std::filesystem::path logDir{"logs"};
     std::error_code ec;
     std::filesystem::create_directories(logDir, ec);
     if (ec) {
@@ -72,7 +76,7 @@ void Logger::init() {
 
     coreLogger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%s:%#] %v");
 
-#if defined(NDEBUG)
+#ifdef NDEBUG
     coreLogger->set_level(spdlog::level::info);
 #else
     coreLogger->set_level(spdlog::level::debug);

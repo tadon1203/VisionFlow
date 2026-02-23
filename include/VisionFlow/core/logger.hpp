@@ -2,8 +2,10 @@
 
 #include <memory>
 
-#if !defined(SPDLOG_ACTIVE_LEVEL)
-#if defined(NDEBUG)
+#include "spdlog/logger.h"
+
+#ifndef SPDLOG_ACTIVE_LEVEL
+#ifdef NDEBUG
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO
 #else
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG

@@ -37,6 +37,36 @@ By default, `build.py` runs both build and tests.
 python.exe build.py --config Debug --test
 ```
 
+## Format
+```bash
+python.exe scripts/run-clang-format.py --all
+git diff --cached | python.exe scripts/run-clang-format.py --diff
+```
+
+## Git Hooks
+```bash
+python.exe scripts/install-hooks.py
+```
+
+The repository uses a managed `pre-commit` hook under `.githooks/`.
+The hook runs diff-based clang-format for staged changes.
+
+- If formatting is already clean, commit continues.
+- If formatting is required, the hook applies fixes and blocks the commit once.
+- Re-stage and retry:
+  - `git add -A`
+  - `git commit`
+
+## Lint
+```bash
+python.exe scripts/run-clang-tidy.py --all
+python.exe scripts/run-clang-tidy.py --all --config Release
+git diff --cached | python.exe scripts/run-clang-tidy.py --diff
+```
+
+`run-clang-tidy.py` runs `cmake --preset <config>` automatically before analysis and uses
+`build/compile_commands.json`.
+
 ## Run
 ```bash
 ./build/RelWithDebInfo/VisionFlow.exe
