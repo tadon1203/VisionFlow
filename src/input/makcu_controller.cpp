@@ -115,35 +115,45 @@ std::expected<void, std::error_code> MakcuController::connect() {
             return {};
         }
         if (state == ControllerState::Opening || state == ControllerState::Stopping) {
+            VF_WARN("MakcuController connect rejected: state transition in progress");
             return std::unexpected(makeErrorCode(MouseError::ProtocolError));
         }
         state = ControllerState::Opening;
     }
+    VF_DEBUG("MakcuController connect requested");
 
     stopSenderThread();
 
     if (!serialPort || !deviceScanner) {
         std::scoped_lock lock(stateMutex);
         state = ControllerState::Fault;
+        VF_ERROR("MakcuController connect failed: platform adapters are not available");
         return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
     }
 
+    VF_DEBUG("MakcuController scanning target hardware id: {}", kTargetHardwareId);
     const std::expected<std::string, std::error_code> portResult =
         deviceScanner->findPortByHardwareId(kTargetHardwareId);
     if (!portResult) {
         std::scoped_lock lock(stateMutex);
         state = ControllerState::Idle;
+        VF_WARN("MakcuController connect failed during device scan: {}",
+                portResult.error().message());
         return std::unexpected(portResult.error());
     }
 
+    VF_DEBUG("MakcuController opening serial port: {} @ {}", portResult.value(), kInitialBaudRate);
     const std::expected<void, std::error_code> openResult =
         serialPort->open(portResult.value(), kInitialBaudRate);
     if (!openResult) {
         std::scoped_lock lock(stateMutex);
         state = ControllerState::Idle;
+        VF_WARN("MakcuController connect failed during serial open: {}",
+                openResult.error().message());
         return std::unexpected(openResult.error());
     }
 
+    VF_DEBUG("MakcuController running baud upgrade handshake");
     const std::expected<void, std::error_code> handshakeResult = runUpgradeHandshake();
     if (!handshakeResult) {
         const std::expected<void, std::error_code> closeResult = serialPort->close();
@@ -153,6 +163,8 @@ std::expected<void, std::error_code> MakcuController::connect() {
         }
         std::scoped_lock lock(stateMutex);
         state = ControllerState::Idle;
+        VF_WARN("MakcuController connect failed during handshake: {}",
+                handshakeResult.error().message());
         return std::unexpected(handshakeResult.error());
     }
 
@@ -320,24 +332,34 @@ std::expected<void, std::error_code> MakcuController::writeText(std::string_view
 }
 
 std::expected<void, std::error_code> MakcuController::runUpgradeHandshake() {
+    VF_DEBUG("MakcuController handshake: send baud-change frame (target={})", kUpgradedBaudRate);
     const std::expected<void, std::error_code> frameResult = sendBaudChangeFrame(kUpgradedBaudRate);
     if (!frameResult) {
+        VF_WARN("MakcuController handshake failed at frame send: {}",
+                frameResult.error().message());
         return std::unexpected(frameResult.error());
     }
 
     std::this_thread::sleep_for(kHandshakeStabilizationDelay);
 
+    VF_DEBUG("MakcuController handshake: reconfigure host baud to {}", kUpgradedBaudRate);
     const std::expected<void, std::error_code> configureResult =
         serialPort->configure(kUpgradedBaudRate);
     if (!configureResult) {
+        VF_WARN("MakcuController handshake failed at host reconfigure: {}",
+                configureResult.error().message());
         return std::unexpected(configureResult.error());
     }
 
+    VF_DEBUG("MakcuController handshake: send echo command");
     const std::expected<void, std::error_code> echoWriteResult = writeText(kEchoCommand);
     if (!echoWriteResult) {
+        VF_WARN("MakcuController handshake failed at echo write: {}",
+                echoWriteResult.error().message());
         return std::unexpected(echoWriteResult.error());
     }
 
+    VF_DEBUG("MakcuController handshake completed");
     return {};
 }
 

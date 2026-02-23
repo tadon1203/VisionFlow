@@ -31,13 +31,15 @@ TEST(ConfigLoaderTest, LoadsValidConfig) {
     writeText(path,
               R"({
   "app": { "reconnectRetryMs": 500 },
-  "makcu": { "remainderTtlMs": 200 }
+  "makcu": { "remainderTtlMs": 200 },
+  "capture": { "preferredDisplayIndex": 1 }
 })");
 
     const auto result = loadConfig(path);
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result->app.reconnectRetryMs, std::chrono::milliseconds(500));
     EXPECT_EQ(result->makcu.remainderTtlMs, std::chrono::milliseconds(200));
+    EXPECT_EQ(result->capture.preferredDisplayIndex, 1U);
 
     static_cast<void>(std::filesystem::remove(path));
 }
@@ -50,6 +52,7 @@ TEST(ConfigLoaderTest, CreatesDefaultConfigForMissingFile) {
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result->app.reconnectRetryMs, std::chrono::milliseconds(500));
     EXPECT_EQ(result->makcu.remainderTtlMs, std::chrono::milliseconds(200));
+    EXPECT_EQ(result->capture.preferredDisplayIndex, 0U);
     EXPECT_TRUE(std::filesystem::exists(path));
 
     static_cast<void>(std::filesystem::remove(path));
@@ -139,6 +142,53 @@ TEST(ConfigLoaderTest, ReturnsParseFailedWhenPathIsDirectory) {
     std::error_code removeError;
     static_cast<void>(std::filesystem::remove_all(path, removeError));
     ASSERT_FALSE(removeError);
+}
+
+TEST(ConfigLoaderTest, UsesDefaultCaptureConfigWhenCaptureSectionMissing) {
+    const auto path = makeTempPath("visionflow_config_without_capture.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->capture.preferredDisplayIndex, 0U);
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsOutOfRangeForNegativePreferredDisplayIndex) {
+    const auto path = makeTempPath("visionflow_config_capture_negative_index.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "capture": { "preferredDisplayIndex": -1 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::OutOfRange));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsOutOfRangeForTooLargePreferredDisplayIndex) {
+    const auto path = makeTempPath("visionflow_config_capture_large_index.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "capture": { "preferredDisplayIndex": 4294967296 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::OutOfRange));
+
+    static_cast<void>(std::filesystem::remove(path));
 }
 
 } // namespace

@@ -7,20 +7,48 @@
 #include <thread>
 #include <utility>
 
+#include "VisionFlow/core/app_error.hpp"
 #include "VisionFlow/core/logger.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
 
 namespace vf {
 
+namespace {
+
+class NoopCaptureRuntime final : public ICaptureRuntime {
+  public:
+    [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config) override {
+        static_cast<void>(config);
+        return {};
+    }
+
+    [[nodiscard]] std::expected<void, std::error_code> stop() override { return {}; }
+};
+
+} // namespace
+
 App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig)
-    : appConfig(appConfig), mouseController(std::move(mouseController)) {}
+    : App(std::move(mouseController), appConfig, CaptureConfig{},
+          std::make_unique<NoopCaptureRuntime>()) {}
+
+App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
+         CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime)
+    : appConfig(appConfig), captureConfig(captureConfig),
+      mouseController(std::move(mouseController)), captureRuntime(std::move(captureRuntime)) {}
 
 bool App::run() {
-    Logger::init();
     VF_INFO("App run started");
 
-    if (!mouseController) {
-        VF_ERROR("App run failed: mouse controller is null");
+    if (!mouseController || !captureRuntime) {
+        VF_ERROR("App run failed: {}", makeErrorCode(AppError::CompositionFailed).message());
+        return false;
+    }
+
+    const std::expected<void, std::error_code> captureStartResult =
+        captureRuntime->start(captureConfig);
+    if (!captureStartResult) {
+        VF_ERROR("App run failed: {} ({})", makeErrorCode(AppError::CaptureStartFailed).message(),
+                 captureStartResult.error().message());
         return false;
     }
 
@@ -50,6 +78,12 @@ bool App::run() {
     if (!disconnectResult) {
         VF_ERROR("App shutdown warning: mouse disconnect failed ({})",
                  disconnectResult.error().message());
+    }
+
+    const std::expected<void, std::error_code> captureStopResult = captureRuntime->stop();
+    if (!captureStopResult) {
+        VF_WARN("App shutdown warning: capture stop failed ({})",
+                captureStopResult.error().message());
     }
 
     VF_INFO("App run finished");

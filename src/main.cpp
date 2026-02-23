@@ -1,10 +1,8 @@
-#include <memory>
-#include <utility>
-
 #include "VisionFlow/core/app.hpp"
+#include "VisionFlow/core/app_error.hpp"
 #include "VisionFlow/core/config_loader.hpp"
 #include "VisionFlow/core/logger.hpp"
-#include "VisionFlow/input/mouse_controller_factory.hpp"
+#include "core/winrt_platform_context.hpp"
 
 int main() {
     vf::Logger::init();
@@ -14,10 +12,17 @@ int main() {
         VF_ERROR("Failed to load config: {}", configResult.error().message());
         return -1;
     }
-    const auto& config = configResult.value();
 
-    auto mouseController = vf::createMouseController(config);
-    vf::App app(std::move(mouseController), config.app);
+    vf::WinRtPlatformContext platformContext;
+    const auto platformInitResult = platformContext.initialize();
+    if (!platformInitResult) {
+        VF_ERROR("Failed to initialize platform runtime: {} ({})",
+                 vf::makeErrorCode(vf::AppError::PlatformInitFailed).message(),
+                 platformInitResult.error().message());
+        return -1;
+    }
+
+    vf::App app(configResult.value());
     if (!app.run()) {
         return -1;
     }
