@@ -32,6 +32,7 @@ class MakcuController final : public IMouseController {
     ~MakcuController() override;
 
     [[nodiscard]] std::expected<void, std::error_code> connect() override;
+    [[nodiscard]] State getState() const override;
     [[nodiscard]] std::expected<void, std::error_code> disconnect() override;
     [[nodiscard]] std::expected<void, std::error_code> move(float dx, float dy) override;
 
@@ -75,7 +76,7 @@ class MakcuController final : public IMouseController {
     std::unique_ptr<IDeviceScanner> deviceScanner;
     MakcuConfig makcuConfig;
 
-    std::mutex stateMutex;
+    mutable std::mutex stateMutex;
     ControllerState state = ControllerState::Idle;
 
     std::jthread sendThread;

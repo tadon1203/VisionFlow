@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <expected>
 #include <system_error>
 
@@ -9,6 +10,14 @@ namespace vf {
 
 class IMouseController {
   public:
+    enum class State : std::uint8_t {
+        Idle,
+        Opening,
+        Ready,
+        Stopping,
+        Fault,
+    };
+
     IMouseController() = default;
     IMouseController(const IMouseController&) = default;
     IMouseController(IMouseController&&) = default;
@@ -17,6 +26,7 @@ class IMouseController {
     virtual ~IMouseController() = default;
 
     [[nodiscard]] virtual std::expected<void, std::error_code> connect() = 0;
+    [[nodiscard]] virtual State getState() const = 0;
     [[nodiscard]] virtual bool shouldRetryConnect(const std::error_code& error) const {
         return shouldRetryConnectError(error);
     }

@@ -24,6 +24,9 @@ class App {
     std::unique_ptr<IMouseController> mouseController;
     std::unique_ptr<ICaptureRuntime> captureRuntime;
 
+    bool setup();
+    bool tickLoop();
+    void shutdown();
     void tick() const;
 };
 
