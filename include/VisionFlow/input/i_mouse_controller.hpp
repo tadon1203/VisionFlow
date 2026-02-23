@@ -21,7 +21,7 @@ class IMouseController {
         return shouldRetryConnectError(error);
     }
     [[nodiscard]] virtual std::expected<void, std::error_code> disconnect() = 0;
-    [[nodiscard]] virtual std::expected<void, std::error_code> move(int dx, int dy) = 0;
+    [[nodiscard]] virtual std::expected<void, std::error_code> move(float dx, float dy) = 0;
 };
 
 } // namespace vf
