@@ -32,7 +32,8 @@ TEST(ConfigLoaderTest, LoadsValidConfig) {
               R"({
   "app": { "reconnectRetryMs": 500 },
   "makcu": { "remainderTtlMs": 200 },
-  "capture": { "preferredDisplayIndex": 1 }
+  "capture": { "preferredDisplayIndex": 1 },
+  "inference": { "modelPath": "detector.onnx" }
 })");
 
     const auto result = loadConfig(path);
@@ -40,6 +41,7 @@ TEST(ConfigLoaderTest, LoadsValidConfig) {
     EXPECT_EQ(result->app.reconnectRetryMs, std::chrono::milliseconds(500));
     EXPECT_EQ(result->makcu.remainderTtlMs, std::chrono::milliseconds(200));
     EXPECT_EQ(result->capture.preferredDisplayIndex, 1U);
+    EXPECT_EQ(result->inference.modelPath, "detector.onnx");
 
     static_cast<void>(std::filesystem::remove(path));
 }
@@ -53,6 +55,7 @@ TEST(ConfigLoaderTest, CreatesDefaultConfigForMissingFile) {
     EXPECT_EQ(result->app.reconnectRetryMs, std::chrono::milliseconds(500));
     EXPECT_EQ(result->makcu.remainderTtlMs, std::chrono::milliseconds(200));
     EXPECT_EQ(result->capture.preferredDisplayIndex, 0U);
+    EXPECT_EQ(result->inference.modelPath, "model.onnx");
     EXPECT_TRUE(std::filesystem::exists(path));
 
     static_cast<void>(std::filesystem::remove(path));
@@ -155,6 +158,39 @@ TEST(ConfigLoaderTest, UsesDefaultCaptureConfigWhenCaptureSectionMissing) {
     const auto result = loadConfig(path);
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result->capture.preferredDisplayIndex, 0U);
+    EXPECT_EQ(result->inference.modelPath, "model.onnx");
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsInvalidTypeForInferenceModelPath) {
+    const auto path = makeTempPath("visionflow_config_inference_invalid_type.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "inference": { "modelPath": 1234 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::InvalidType));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsOutOfRangeForEmptyInferenceModelPath) {
+    const auto path = makeTempPath("visionflow_config_inference_empty_path.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "inference": { "modelPath": "" }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::OutOfRange));
 
     static_cast<void>(std::filesystem::remove(path));
 }

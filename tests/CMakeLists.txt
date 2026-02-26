@@ -1,11 +1,15 @@
 add_executable(VisionFlowUnitTests
     unit/capture/capture_error_test.cpp
+    unit/capture/inference_result_store_test.cpp
+    unit/capture/onnx_dml_session_test.cpp
     unit/core/app_test.cpp
     unit/core/config_loader_test.cpp
     unit/core/error_domain_contract_test.cpp
     unit/input/makcu_controller_test.cpp
     unit/input/mouse_error_test.cpp
     ../src/capture/capture_error.cpp
+    ../src/capture/inference_result_store.cpp
+    ../src/capture/onnx_dml_session.cpp
     ../src/core/app.cpp
     ../src/core/app_error.cpp
     ../src/core/config_error.cpp
@@ -30,6 +34,8 @@ target_link_libraries(VisionFlowUnitTests PRIVATE
 )
 
 if (WIN32)
+    vf_configure_onnxruntime_dml(VisionFlowUnitTests)
+
     target_link_libraries(VisionFlowUnitTests PRIVATE
         windowsapp
     )

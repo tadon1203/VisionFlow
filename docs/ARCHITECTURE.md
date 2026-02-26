@@ -41,6 +41,8 @@ main
       -> WinrtCaptureRuntime (implementation)
         -> WinrtCaptureSource
           -> ICaptureProcessor (private src boundary)
+            -> OnnxDmlCaptureProcessor
+              -> OnnxDmlSession (DirectML + IO Binding)
     -> createMouseController()
       -> IMouseController (interface)
         -> MakcuController (implementation)
@@ -114,6 +116,11 @@ main
 4. Create frame pool and subscribe `FrameArrived`
 5. Start capture session
 6. Push each texture frame to capture processor
+7. Keep only the freshest frame in the processor and drop stale frames
+8. Create a shared D3D11 texture (`D3D11_RESOURCE_MISC_SHARED_NTHANDLE`) for frame handoff
+9. Open the shared texture on D3D12 and signal/wait a shared fence for D3D11 -> D3D12 ordering
+10. Run D3D12 compute preprocess (`BGRA -> RGB`, `NCHW`) into a D3D12 input buffer
+11. Bind the D3D12 input resource to ONNX Runtime DirectML (`DML1`) via IO Binding
 
 ### Move Path
 1. `move(dx, dy)` writes pending command under lock
@@ -136,6 +143,7 @@ main
 
 ## Concurrency Model
 - `MakcuController` is the sole owner of its worker thread
+- `OnnxDmlCaptureProcessor` is the sole owner of its inference thread
 - Shared mutable state is protected by explicit mutexes
 - Shutdown sequence is explicit and deterministic
 

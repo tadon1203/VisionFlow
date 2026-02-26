@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <string>
 
 namespace vf {
 
@@ -17,10 +18,15 @@ struct CaptureConfig {
     std::uint32_t preferredDisplayIndex{0};
 };
 
+struct InferenceConfig {
+    std::string modelPath{"model.onnx"};
+};
+
 struct VisionFlowConfig {
     AppConfig app;
     MakcuConfig makcu;
     CaptureConfig capture;
+    InferenceConfig inference;
 };
 
 } // namespace vf

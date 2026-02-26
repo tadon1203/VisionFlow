@@ -2,8 +2,6 @@
 
 #include <memory>
 
-#include "spdlog/logger.h"
-
 #ifndef SPDLOG_ACTIVE_LEVEL
 #ifdef NDEBUG
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO

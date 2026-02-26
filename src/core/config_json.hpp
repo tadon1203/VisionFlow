@@ -96,11 +96,30 @@ inline void from_json(const nlohmann::json& json, CaptureConfig& config) {
     config.preferredDisplayIndex = static_cast<std::uint32_t>(signedValue);
 }
 
+inline void to_json(nlohmann::json& json, const InferenceConfig& config) {
+    json = {{"modelPath", config.modelPath}};
+}
+
+inline void from_json(const nlohmann::json& json, InferenceConfig& config) {
+    const nlohmann::json& value = json.at("modelPath");
+    if (!value.is_string()) {
+        throw nlohmann::json::type_error::create(detail::kJsonTypeErrorId,
+                                                 "expected string for key 'modelPath'", &value);
+    }
+
+    config.modelPath = value.get<std::string>();
+    if (config.modelPath.empty()) {
+        throw nlohmann::json::other_error::create(detail::kJsonOtherErrorId,
+                                                  "out of range for key 'modelPath'", &value);
+    }
+}
+
 inline void to_json(nlohmann::json& json, const VisionFlowConfig& config) {
     json = {
         {"app", config.app},
         {"makcu", config.makcu},
         {"capture", config.capture},
+        {"inference", config.inference},
     };
 }
 
@@ -109,6 +128,9 @@ inline void from_json(const nlohmann::json& json, VisionFlowConfig& config) {
     config.makcu = json.at("makcu").get<MakcuConfig>();
     if (json.contains("capture")) {
         config.capture = json.at("capture").get<CaptureConfig>();
+    }
+    if (json.contains("inference")) {
+        config.inference = json.at("inference").get<InferenceConfig>();
     }
 }
 // NOLINTEND(readability-identifier-naming)

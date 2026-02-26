@@ -53,12 +53,17 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 if (WIN32)
+    include("${CMAKE_SOURCE_DIR}/cmake/OnnxRuntimeDml.cmake")
+    vf_configure_onnxruntime_dml(${PROJECT_NAME})
+
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         NOMINMAX
         WIN32_LEAN_AND_MEAN
     )
     target_link_libraries(${PROJECT_NAME} PRIVATE
         d3d11
+        d3d12
+        d3dcompiler
         dxgi
         windowsapp
     )
