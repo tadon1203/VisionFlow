@@ -1,11 +1,33 @@
-function(vf_copy_onnxruntime_runtime_dlls target_name dll_paths)
-    foreach(runtime_dll ${dll_paths})
-        add_custom_command(TARGET ${target_name} POST_BUILD
+function(vf_add_onnxruntime_runtime_copy_command target_name onnxruntime_root)
+    set(kCopyScriptPath
+        "${CMAKE_CURRENT_BINARY_DIR}/cmake/vf_copy_onnxruntime_runtime_dlls_${target_name}.cmake")
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/cmake")
+    file(WRITE "${kCopyScriptPath}" [=[
+set(kOnnxRuntimeLibDir "${ONNX_RUNTIME_ROOT}/lib/win-x64/${ONNX_RUNTIME_CONFIG}")
+foreach(runtime_dll_name
+    onnxruntime.dll
+    onnxruntime_providers_shared.dll
+    onnxruntime_providers_dml.dll
+    DirectML.dll)
+    set(runtime_dll_path "${kOnnxRuntimeLibDir}/${runtime_dll_name}")
+    if (EXISTS "${runtime_dll_path}")
+        execute_process(
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                    "${runtime_dll}"
-                    "$<TARGET_FILE_DIR:${target_name}>"
-            VERBATIM)
-    endforeach()
+                    "${runtime_dll_path}"
+                    "${ONNX_RUNTIME_TARGET_DIR}"
+            COMMAND_ERROR_IS_FATAL ANY
+        )
+    endif()
+endforeach()
+]=])
+
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND "${CMAKE_COMMAND}"
+                "-DONNX_RUNTIME_ROOT=${onnxruntime_root}"
+                "-DONNX_RUNTIME_CONFIG=$<CONFIG>"
+                "-DONNX_RUNTIME_TARGET_DIR=$<TARGET_FILE_DIR:${target_name}>"
+                -P "${kCopyScriptPath}"
+        VERBATIM)
 endfunction()
 
 function(vf_configure_onnxruntime_dml target_name)
@@ -13,55 +35,74 @@ function(vf_configure_onnxruntime_dml target_name)
     set(kOnnxRuntimeRoot "${CMAKE_SOURCE_DIR}/third_party/onnxruntime/${kOnnxRuntimeVersion}")
     set(kOnnxRuntimeIncludeDir "${kOnnxRuntimeRoot}/include")
     set(kOnnxRuntimeSessionIncludeDir "${kOnnxRuntimeIncludeDir}/onnxruntime/core/session")
-    set(kOnnxRuntimeLibDir "")
-    set(kOnnxRuntimeRuntimeDlls "")
 
-    set(kOnnxRuntimeBuildConfig "${CMAKE_BUILD_TYPE}")
-    if (NOT kOnnxRuntimeBuildConfig)
-        set(kOnnxRuntimeBuildConfig "RelWithDebInfo")
+    if (CMAKE_CONFIGURATION_TYPES)
+        set(kCandidateConfigs ${CMAKE_CONFIGURATION_TYPES})
+    else()
+        set(kCandidateConfigs "${CMAKE_BUILD_TYPE}")
+        if (NOT kCandidateConfigs)
+            set(kCandidateConfigs "RelWithDebInfo")
+        endif()
     endif()
-    set(kOnnxRuntimeLibDir "${kOnnxRuntimeRoot}/lib/win-x64/${kOnnxRuntimeBuildConfig}")
+    list(REMOVE_DUPLICATES kCandidateConfigs)
 
-    set(VF_HAS_ONNXRUNTIME_DML OFF)
-    if (EXISTS "${kOnnxRuntimeIncludeDir}/onnxruntime/core/session/onnxruntime_cxx_api.h"
-        AND EXISTS "${kOnnxRuntimeLibDir}/onnxruntime.lib"
-        AND EXISTS "${kOnnxRuntimeLibDir}/onnxruntime_providers_dml.lib"
-        AND EXISTS "${kOnnxRuntimeLibDir}/onnxruntime_providers_shared.lib")
-        set(VF_HAS_ONNXRUNTIME_DML ON)
-        foreach(runtime_dll_name
-            onnxruntime.dll
-            onnxruntime_providers_shared.dll
-            onnxruntime_providers_dml.dll
-            DirectML.dll)
-            set(runtime_dll_path "${kOnnxRuntimeLibDir}/${runtime_dll_name}")
-            if (EXISTS "${runtime_dll_path}")
-                list(APPEND kOnnxRuntimeRuntimeDlls "${runtime_dll_path}")
-            endif()
-        endforeach()
+    set(kDetectedConfigs "")
+    foreach(config_name IN LISTS kCandidateConfigs)
+        set(kOnnxRuntimeLibDir "${kOnnxRuntimeRoot}/lib/win-x64/${config_name}")
+        if (EXISTS "${kOnnxRuntimeIncludeDir}/onnxruntime/core/session/onnxruntime_cxx_api.h"
+            AND EXISTS "${kOnnxRuntimeLibDir}/onnxruntime.lib"
+            AND EXISTS "${kOnnxRuntimeLibDir}/onnxruntime_providers_dml.lib"
+            AND EXISTS "${kOnnxRuntimeLibDir}/onnxruntime_providers_shared.lib")
+            list(APPEND kDetectedConfigs "${config_name}")
+        endif()
+    endforeach()
 
+    set(kEnabledDefinition "0")
+    if (kDetectedConfigs)
         target_include_directories(${target_name} PRIVATE
             "${kOnnxRuntimeIncludeDir}"
             "${kOnnxRuntimeSessionIncludeDir}"
         )
-        target_link_directories(${target_name} PRIVATE
-            "${kOnnxRuntimeLibDir}"
-        )
-        target_link_libraries(${target_name} PRIVATE
-            onnxruntime
-            onnxruntime_providers_dml
-            onnxruntime_providers_shared
-        )
 
-        vf_copy_onnxruntime_runtime_dlls(${target_name} "${kOnnxRuntimeRuntimeDlls}")
-        message(STATUS
-            "ONNX Runtime DML enabled (config=${kOnnxRuntimeBuildConfig}, libdir=${kOnnxRuntimeLibDir})")
+        set(kOnnxRuntimeLinkItems "")
+        foreach(config_name IN LISTS kDetectedConfigs)
+            set(kOnnxRuntimeLibDir "${kOnnxRuntimeRoot}/lib/win-x64/${config_name}")
+            list(APPEND kOnnxRuntimeLinkItems
+                "$<$<CONFIG:${config_name}>:${kOnnxRuntimeLibDir}/onnxruntime.lib>"
+                "$<$<CONFIG:${config_name}>:${kOnnxRuntimeLibDir}/onnxruntime_providers_dml.lib>"
+                "$<$<CONFIG:${config_name}>:${kOnnxRuntimeLibDir}/onnxruntime_providers_shared.lib>"
+            )
+        endforeach()
+        target_link_libraries(${target_name} PRIVATE ${kOnnxRuntimeLinkItems})
+
+        vf_add_onnxruntime_runtime_copy_command(${target_name} "${kOnnxRuntimeRoot}")
+
+        if (CMAKE_CONFIGURATION_TYPES)
+            set(kConfigExpressions "")
+            foreach(config_name IN LISTS kDetectedConfigs)
+                list(APPEND kConfigExpressions "$<CONFIG:${config_name}>")
+            endforeach()
+            if (kConfigExpressions)
+                list(JOIN kConfigExpressions "," kOrArgs)
+                set(kEnabledDefinition "$<IF:$<OR:${kOrArgs}>,1,0>")
+            endif()
+            message(STATUS
+                "ONNX Runtime DML enabled for target=${target_name} in configs: ${kDetectedConfigs}")
+        else()
+            set(kEnabledDefinition "1")
+            message(STATUS
+                "ONNX Runtime DML enabled for target=${target_name} in config=${kDetectedConfigs}")
+        endif()
     else()
-        message(STATUS
-            "ONNX Runtime DML disabled: required files not found for config=${kOnnxRuntimeBuildConfig} "
-            "under ${kOnnxRuntimeLibDir}")
+        if (CMAKE_CONFIGURATION_TYPES)
+            message(STATUS
+                "ONNX Runtime DML disabled for target=${target_name}: no matching config libs under "
+                "${kOnnxRuntimeRoot}/lib/win-x64")
+        else()
+            message(STATUS
+                "ONNX Runtime DML disabled for target=${target_name} in config=${kCandidateConfigs}")
+        endif()
     endif()
 
-    set(VF_HAS_ONNXRUNTIME_DML ${VF_HAS_ONNXRUNTIME_DML} PARENT_SCOPE)
-    set(kOnnxRuntimeLibDir "${kOnnxRuntimeLibDir}" PARENT_SCOPE)
-    set(kOnnxRuntimeRuntimeDlls "${kOnnxRuntimeRuntimeDlls}" PARENT_SCOPE)
+    target_compile_definitions(${target_name} PRIVATE VF_HAS_ONNXRUNTIME_DML=${kEnabledDefinition})
 endfunction()

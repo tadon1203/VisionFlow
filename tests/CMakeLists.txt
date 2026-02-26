@@ -34,28 +34,11 @@ target_link_libraries(VisionFlowUnitTests PRIVATE
 )
 
 if (WIN32)
+    vf_configure_onnxruntime_dml(VisionFlowUnitTests)
+
     target_link_libraries(VisionFlowUnitTests PRIVATE
         windowsapp
     )
-
-    if (VF_HAS_ONNXRUNTIME_DML)
-        target_link_directories(VisionFlowUnitTests PRIVATE
-            "${kOnnxRuntimeLibDir}"
-        )
-        target_link_libraries(VisionFlowUnitTests PRIVATE
-            onnxruntime
-            onnxruntime_providers_dml
-            onnxruntime_providers_shared
-        )
-
-        foreach(runtime_dll ${kOnnxRuntimeRuntimeDlls})
-            add_custom_command(TARGET VisionFlowUnitTests POST_BUILD
-                COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                        "${runtime_dll}"
-                        "$<TARGET_FILE_DIR:VisionFlowUnitTests>"
-                VERBATIM)
-        endforeach()
-    endif()
 endif()
 
 include(GoogleTest)
