@@ -90,3 +90,17 @@ All prefixes follow the same workflow rule: direct `main` commit is forbidden, a
 - Body is optional and must start after one blank line from the header.
 - Footers are optional and must start after one blank line from body (or header if no body).
 - Prefer splitting mixed-purpose changes into multiple commits instead of using one ambiguous type.
+
+## ONNX Runtime Asset Deployment
+- The repository does not version ONNX Runtime binary payloads under source control for CI portability.
+- Package and publish ONNX Runtime binaries to GitHub Releases, then update CMake constants.
+
+### Workflow
+1. Place updated binaries under `third_party/onnxruntime/<version>/`.
+2. Run `python.exe scripts/deploy_assets.py --version <version>`.
+3. Copy emitted `kOnnxRuntimeAssetUrl` and `kOnnxRuntimeAssetSha256` values into `cmake/OnnxRuntimeDml.cmake`.
+4. Commit the CMake update and run CI.
+
+### Packaging Rules
+- ZIP compression MUST be `deflate` with compression level `9`.
+- Archive root MUST contain `include/...` and `lib/win-x64/...` directly (no `third_party/...` prefix).
