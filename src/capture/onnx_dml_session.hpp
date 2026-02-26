@@ -43,16 +43,20 @@ class OnnxDmlSession {
     OnnxDmlSession(OnnxDmlSession&&) = delete;
     OnnxDmlSession& operator=(const OnnxDmlSession&) = delete;
     OnnxDmlSession& operator=(OnnxDmlSession&&) = delete;
-    ~OnnxDmlSession();
+    ~OnnxDmlSession() noexcept;
 
     [[nodiscard]] static std::expected<ModelMetadata, std::error_code>
     createModelMetadata(std::string inputName, std::vector<int64_t> inputShape,
                         std::vector<std::string> outputNames);
 
 #ifdef _WIN32
+    [[nodiscard]] std::expected<void, std::error_code>
+    start(IDMLDevice* dmlDevice, ID3D12CommandQueue* commandQueue, std::uint64_t interopGeneration);
     [[nodiscard]] std::expected<void, std::error_code> start(IDMLDevice* dmlDevice,
                                                              ID3D12CommandQueue* commandQueue);
 #else
+    [[nodiscard]] std::expected<void, std::error_code> start(void* dmlDevice, void* commandQueue,
+                                                             std::uint64_t interopGeneration);
     [[nodiscard]] std::expected<void, std::error_code> start(void* dmlDevice, void* commandQueue);
 #endif
     [[nodiscard]] std::expected<void, std::error_code> stop();
@@ -60,10 +64,9 @@ class OnnxDmlSession {
     [[nodiscard]] const ModelMetadata& metadata() const;
 
 #if defined(_WIN32) && defined(VF_HAS_ONNXRUNTIME_DML) && VF_HAS_ONNXRUNTIME_DML
-    [[nodiscard]] std::expected<void, std::error_code>
-    initializeGpuInputFromResource(ID3D12Resource* resource, std::size_t resourceBytes);
     [[nodiscard]] std::expected<InferenceResult, std::error_code>
-    runWithGpuInput(std::int64_t frameTimestamp100ns);
+    runWithGpuInput(std::int64_t frameTimestamp100ns, ID3D12Resource* resource,
+                    std::size_t resourceBytes);
 #endif
 
   private:
@@ -81,12 +84,12 @@ class OnnxDmlSession {
     std::unique_ptr<Ort::MemoryInfo> dmlMemoryInfo;
     std::unique_ptr<Ort::MemoryInfo> cpuMemoryInfo;
     void* inputAllocation = nullptr;
-    bool inputBound = false;
 
     winrt::com_ptr<IDMLDevice> dmlDevice;
     winrt::com_ptr<ID3D12CommandQueue> d3d12Queue;
     winrt::com_ptr<ID3D12Device> d3d12Device;
-    winrt::com_ptr<ID3D12Resource> inputResource;
+    ID3D12Resource* boundInputResource = nullptr;
+    std::uint64_t boundInteropGeneration = 0;
 #endif
 };
 

@@ -7,6 +7,7 @@
 #include <system_error>
 
 #include "VisionFlow/core/config.hpp"
+#include "capture/winrt/i_winrt_frame_sink.hpp"
 
 #ifdef _WIN32
 #include <d3d11.h>
@@ -17,8 +18,6 @@
 
 namespace vf {
 
-class ICaptureProcessor;
-
 class WinrtCaptureSource {
   public:
     WinrtCaptureSource();
@@ -28,7 +27,7 @@ class WinrtCaptureSource {
     WinrtCaptureSource& operator=(WinrtCaptureSource&&) = delete;
     ~WinrtCaptureSource();
 
-    void setProcessor(std::shared_ptr<ICaptureProcessor> processor);
+    void setFrameSink(std::shared_ptr<IWinrtFrameSink> frameSink);
     [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config);
     [[nodiscard]] std::expected<void, std::error_code> stop();
 
@@ -52,7 +51,7 @@ class WinrtCaptureSource {
 
     std::mutex stateMutex;
     CaptureState state = CaptureState::Idle;
-    std::shared_ptr<ICaptureProcessor> processor;
+    std::shared_ptr<IWinrtFrameSink> frameSink;
 
 #ifdef _WIN32
     winrt::com_ptr<ID3D11Device> d3dDevice;

@@ -9,7 +9,7 @@
 
 #include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/core/logger.hpp"
-#include "capture/i_capture_processor.hpp"
+#include "capture/winrt/i_winrt_frame_sink.hpp"
 
 #ifdef _WIN32
 #include <vector>
@@ -34,9 +34,9 @@ WinrtCaptureSource::~WinrtCaptureSource() {
     }
 }
 
-void WinrtCaptureSource::setProcessor(std::shared_ptr<ICaptureProcessor> nextProcessor) {
+void WinrtCaptureSource::setFrameSink(std::shared_ptr<IWinrtFrameSink> nextFrameSink) {
     std::scoped_lock lock(stateMutex);
-    processor = std::move(nextProcessor);
+    frameSink = std::move(nextFrameSink);
 }
 
 std::expected<void, std::error_code> WinrtCaptureSource::start(const CaptureConfig& config) {
@@ -331,15 +331,15 @@ void WinrtCaptureSource::onFrameArrived(
     const winrt::Windows::Foundation::IInspectable& args) {
     static_cast<void>(args);
 
-    std::shared_ptr<ICaptureProcessor> processorSnapshot;
+    std::shared_ptr<IWinrtFrameSink> frameSinkSnapshot;
     {
         std::scoped_lock lock(stateMutex);
         if (state != CaptureState::Running) {
             return;
         }
-        processorSnapshot = processor;
+        frameSinkSnapshot = frameSink;
     }
-    if (!processorSnapshot) {
+    if (!frameSinkSnapshot) {
         return;
     }
 
@@ -388,7 +388,7 @@ void WinrtCaptureSource::onFrameArrived(
             }
         }
 
-        processorSnapshot->onFrame(texture.get(), info);
+        frameSinkSnapshot->onFrame(texture.get(), info);
     } catch (const winrt::hresult_error& ex) {
         VF_WARN("WinrtCaptureSource frame processing failed with WinRT exception: {}",
                 winrt::to_string(ex.message()));
