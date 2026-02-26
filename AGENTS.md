@@ -24,7 +24,6 @@
 - Read `.clang-format` and `.clang-tidy` before code changes.
 - Read `docs/ARCHITECTURE.md` before changing architecture boundaries or ownership flows.
 - Read `docs/CONTRIBUTING.md` before branch/PR/commit operations.
-- Read `docs/REVIEW_GUIDE.md` before performing code review.
 - Update `docs/ARCHITECTURE.md` when architecture boundaries or ownership flows change.
 - Keep changes scoped to the user request.
 - Preserve existing architecture boundaries and interfaces when possible.
