@@ -39,6 +39,18 @@ App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
 bool App::run() {
     VF_INFO("App run started");
 
+    if (!setup()) {
+        return false;
+    }
+
+    const bool success = tickLoop();
+    shutdown();
+
+    VF_INFO("App run finished");
+    return success;
+}
+
+bool App::setup() {
     if (!mouseController || !captureRuntime) {
         VF_ERROR("App run failed: {}", makeErrorCode(AppError::CompositionFailed).message());
         return false;
@@ -52,9 +64,20 @@ bool App::run() {
         return false;
     }
 
-    bool success = true;
     running = true;
+    return true;
+}
+
+bool App::tickLoop() {
+    bool success = true;
     while (running) {
+        const IMouseController::State state = mouseController->getState();
+        if (state != IMouseController::State::Idle) {
+            tick();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+
         const std::expected<void, std::error_code> connectResult = mouseController->connect();
         if (!connectResult) {
             VF_WARN("App reconnect attempt failed: {}", connectResult.error().message());
@@ -74,6 +97,10 @@ bool App::run() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
+    return success;
+}
+
+void App::shutdown() {
     const std::expected<void, std::error_code> disconnectResult = mouseController->disconnect();
     if (!disconnectResult) {
         VF_ERROR("App shutdown warning: mouse disconnect failed ({})",
@@ -85,9 +112,6 @@ bool App::run() {
         VF_WARN("App shutdown warning: capture stop failed ({})",
                 captureStopResult.error().message());
     }
-
-    VF_INFO("App run finished");
-    return success;
 }
 
 void App::tick() const {}

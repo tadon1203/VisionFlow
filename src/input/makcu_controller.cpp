@@ -194,6 +194,23 @@ std::expected<void, std::error_code> MakcuController::connect() {
     return {};
 }
 
+IMouseController::State MakcuController::getState() const {
+    std::scoped_lock lock(stateMutex);
+    switch (state) {
+    case ControllerState::Idle:
+        return State::Idle;
+    case ControllerState::Opening:
+        return State::Opening;
+    case ControllerState::Ready:
+        return State::Ready;
+    case ControllerState::Stopping:
+        return State::Stopping;
+    case ControllerState::Fault:
+        return State::Fault;
+    }
+    return State::Fault;
+}
+
 std::expected<void, std::error_code> MakcuController::disconnect() {
     {
         std::scoped_lock lock(stateMutex);
