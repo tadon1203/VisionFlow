@@ -23,6 +23,8 @@
 ### Always Do
 - Read `.clang-format` and `.clang-tidy` before code changes.
 - Read `docs/ARCHITECTURE.md` before changing architecture boundaries or ownership flows.
+- Read `docs/CONTRIBUTING.md` before branch/PR/commit operations.
+- Read `docs/REVIEW_GUIDE.md` before performing code review.
 - Update `docs/ARCHITECTURE.md` when architecture boundaries or ownership flows change.
 - Keep changes scoped to the user request.
 - Preserve existing architecture boundaries and interfaces when possible.
@@ -59,124 +61,6 @@
 - Build-only fallback (when tests are intentionally skipped):
   - `python.exe build.py --no-test`
 
-## Git Workflow
-- Keep one logical change per commit scope.
-- Do not revert unrelated user changes.
-- Minimize diff size; avoid drive-by edits.
-- Keep commit-ready code deterministic and reviewable.
-- Always use pull requests for integration; direct integration to `main` is not allowed.
-- Use branch-based development for all changes; do not commit directly to `main`.
-- For branch-based changes, merge into `main` using **Squash and Merge**.
-- Do not use merge commits or rebase-and-merge for normal branch integration.
-- Before squash merging, ensure the PR title already matches Conventional Commits format.
-- Enable repository-managed hooks with `python.exe scripts/install-hooks.py` after clone/setup.
-- Pre-commit runs diff-based format check via `run-clang-format.py --diff`.
-- If formatting updates files, the hook rewrites them and blocks commit once; re-stage and commit again.
-
-### Main Direct Commit Policy
-- Direct commits to `main` are forbidden.
-- All changes must always go through a pull request and **Squash and Merge**.
-- If branch protection blocks direct push, do not bypass with policy exceptions.
-
-### Branch Naming Convention
-- Use: `prefix/short-description`
-- Use lowercase and kebab-case for `short-description`.
-- Keep `short-description` concise and descriptive.
-- Allowed prefixes: `docs/`, `chore/`, `feat/`, `fix/`, `refactor/`, `perf/`, `build/`, `test/`, `ci/`.
-
-### Pull Request Policy
-- PR descriptions MUST use `.github/PULL_REQUEST_TEMPLATE.md`.
-- `Summary` MUST describe intent and scope of the change concisely.
-- `Validation Results` MUST be updated based on actual execution.
-- If a validation item is not executed, include a short reason in the PR description.
-- For `--diff` validators, pass diff input via stdin (for example `git diff --cached | ...`).
-- PR titles MUST follow Conventional Commits (same rule as squash commit titles).
-
-### PR Body Safety Rule
-- When creating or editing PR descriptions with GitHub CLI, DO NOT pass markdown directly via `--body`.
-- Use `--body-file <path>` for `gh pr create` and `gh pr edit`.
-- Generate body files with single-quoted heredoc (`cat <<'EOF'`) to prevent shell expansion.
-- Treat backticks, `$()`, and `$VAR` as expansion-sensitive content and always keep them in body files.
-- After creating or updating a PR, verify the rendered body with `gh pr view --json body`.
-- If `gh pr edit` fails due to environment/API constraints, `gh api repos/<owner>/<repo>/pulls/<number> -X PATCH --raw-field body=...` is an allowed fallback.
-
-Example:
-```bash
-cat > /tmp/pr_body.md <<'EOF'
-## Summary
-- ...
-
-## Validation Results
-- [x] `python.exe build.py` (Build & Test OK)
-EOF
-
-gh pr create --base main --head <branch> --title "<title>" --body-file /tmp/pr_body.md
-gh pr view --json body --jq .body
-```
-
-### Prefix Policy Matrix
-All prefixes follow the same workflow rule: direct `main` commit is forbidden, and branch + PR are required.
-
-| Prefix | Purpose |
-| --- | --- |
-| `docs/` | Documentation and comment updates |
-| `chore/` | Housekeeping, config files, `.gitignore` |
-| `build/` | Build configuration, `build.py`, presets |
-| `feat/` | New features |
-| `fix/` | Bug fixes |
-| `refactor/` | Code restructuring without feature intent |
-| `perf/` | Performance improvements |
-| `test/` | Test additions and updates |
-| `ci/` | CI pipeline changes |
-
-## Commit Message Convention
-- Follow **Conventional Commits** for all commits.
-- PR titles MUST also follow Conventional Commits because they become the final commit title in Squash and Merge.
-- Required header format: `<type>[optional scope][optional !]: <description>`
-- Use lowercase `type` and concise imperative descriptions.
-- `type` values:
-  - `feat`: new feature
-  - `fix`: bug fix
-  - `build`, `chore`, `ci`, `docs`, `style`, `refactor`, `perf`, `test`, `revert`: allowed and recommended when applicable
-- `scope` is optional and should be a noun in parentheses (for example `fix(serial): ...`).
-- Breaking changes:
-  - Use `!` before `:`, and/or
-  - Add footer `BREAKING CHANGE: <description>` (uppercase token required).
-- Body is optional and must start after one blank line from the header.
-- Footers are optional and must start after one blank line from body (or header if no body).
-- Prefer splitting mixed-purpose changes into multiple commits instead of using one ambiguous type.
-
-## Code Review Method
-- Purpose: define how to review changes, not what to implement.
-- Do not restate rules from `## Coding Guidelines`; reference them when needed.
-- Keep review comments focused on risk, evidence, and required action.
-
-### Review Priority (Risk-First)
-- Review in this order and record all findings:
-  1. Correctness and regression risk (behavior mismatch, broken existing flows)
-  2. Safety and robustness risk (state transitions, error paths, shutdown sequencing)
-  3. Architecture boundary risk (ownership leaks, boundary violations, abstraction bypass)
-  4. Performance and resource risk (hot-path allocations, leaks, unnecessary copies)
-  5. Test and validation risk (missing tests, weak validation coverage, skipped checks)
-
-### Finding Format
-- Each finding MUST include all fields below:
-  - `Severity`: `critical` | `high` | `medium` | `low`
-  - `Category`: one of the risk areas from this section
-  - `Evidence`: concrete file path and line reference
-  - `Required Action`: exact change needed to resolve the finding
-- Suggested template:
-  - `Severity=<...> | Category=<...> | Evidence=<path:line> | Required Action=<...>`
-
-### Decision Policy (Block on All Findings)
-- Any unresolved finding blocks approval (`Request changes`).
-- **Cleanliness as a Requirement**: Findings are not limited to functional defects. Violations of `Coding Guidelines` that increase maintenance risk (for example: leaky abstractions, incorrect helper placement, or unnecessary coupling) MUST be reported and block approval.
-- Maintainability-related findings default to `medium`; escalate to `high` when they affect architecture boundaries, ownership, or API clarity.
-- Approval requires either:
-  - all findings resolved, or
-  - an explicit agreement in the PR for each deferred finding with rationale and a tracking issue/task ID.
-- Deferred items without traceable tracking IDs are not acceptable for approval.
-
 ## Coding Guidelines
 
 ### 1. Architectural Integrity
@@ -211,6 +95,7 @@ All prefixes follow the same workflow rule: direct `main` commit is forbidden, a
 - **Thread Ownership & Shutdown Rule**: Assign each thread a single owner and enforce explicit shutdown sequencing (`request stop -> wake -> join`).
 - **Principle of Least Astonishment**: Keep behavior intuitive and consistent.
 - **Const Correctness**: Use `const` by default where possible.
+- **Null Pointer Check Rule**: Use explicit null checks (`ptr == nullptr` / `ptr != nullptr`). Do not rely on implicit pointer-to-bool conversion in conditions.
 
 ### 5. Naming Guidelines
 - **Variable Naming**: Use nouns in `camelBack`.
@@ -243,3 +128,19 @@ All prefixes follow the same workflow rule: direct `main` commit is forbidden, a
   - Keep platform-specific includes and concrete implementations in `src/` private headers/sources, behind abstract interfaces.
 - Example project include path:
   - `"VisionFlow/input/i_serial_port.hpp"`
+
+### 7. CMake Guidelines
+- **Project Constants/Locals (`k` Prefix)**: Project-specific CMake constants and non-cache variables MUST use `k` prefix (for example `kOnnxRuntimeRoot`) to avoid confusion with built-in `CMAKE_*` variables.
+- **Options/Flags (`VF_` Prefix)**: Public cache options and build flags exposed to CLI MUST use `VF_` prefix with uppercase snake case (for example `VF_HAS_ONNXRUNTIME_DML`).
+- **Functions/Macros (`vf_` Prefix)**: Custom CMake functions/macros MUST use `vf_` prefix to prevent namespace collisions and make project ownership explicit.
+- **Target Scope Rule**: Directory-scope APIs (`include_directories`, `link_libraries`, `add_definitions`) MUST NOT be used for project configuration; use `target_*` APIs instead.
+- **Visibility Rule**: `target_*` calls MUST always specify `PRIVATE`, `PUBLIC`, or `INTERFACE` explicitly.
+- **Cache Variable Rule**: Only variables intentionally exposed for external configuration may use `CACHE`; internal flow variables MUST use normal (non-cache) variables.
+- **Option Definition Rule**: Feature toggles MUST be declared with `option(VF_... "..." <default>)`, and SHOULD include a short comment for intent/scope impact.
+- **Configuration Path Rule**: Build-config-specific paths MUST NOT hardcode one config directory (`Debug`/`Release`/`RelWithDebInfo` only); resolve using active configuration (`CMAKE_BUILD_TYPE` and/or generator expressions).
+- **Dependency Failure Policy**: CMake modules MUST define behavior for missing dependencies: required dependencies use `FATAL_ERROR`; optional dependencies auto-disable with explicit `STATUS` logs.
+- **Module Placement Rule**: Custom CMake modules MUST be placed under `cmake/`, and module filenames SHOULD use `PascalCase.cmake`.
+- **Message Rule**: Use `message(STATUS ...)` for normal diagnostics; `WARNING` and `FATAL_ERROR` MUST be reserved for actionable risk states.
+- **Policy Rule**: `cmake_policy(SET ...)` changes MUST be centralized at top-level CMake entrypoint and include a brief reason.
+- **Test Integration Rule**: Test-only CMake configuration MUST stay under `BUILD_TESTING` guards and MUST NOT add unnecessary runtime dependencies to production targets.
+- **FetchContent Rule**: `FetchContent` dependencies MUST pin reproducible versions (`GIT_TAG` commit/tag), and updates MUST be reviewed for reproducibility, license, and binary-size impact.
