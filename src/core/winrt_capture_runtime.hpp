@@ -8,12 +8,12 @@
 
 namespace vf {
 
-class DebugCaptureProcessor;
+class ICaptureProcessor;
 class WinrtCaptureSource;
 
 class WinrtCaptureRuntime final : public ICaptureRuntime {
   public:
-    WinrtCaptureRuntime();
+    explicit WinrtCaptureRuntime(const InferenceConfig& inferenceConfig);
     WinrtCaptureRuntime(const WinrtCaptureRuntime&) = delete;
     WinrtCaptureRuntime(WinrtCaptureRuntime&&) = delete;
     WinrtCaptureRuntime& operator=(const WinrtCaptureRuntime&) = delete;
@@ -24,7 +24,7 @@ class WinrtCaptureRuntime final : public ICaptureRuntime {
     [[nodiscard]] std::expected<void, std::error_code> stop() override;
 
   private:
-    std::shared_ptr<DebugCaptureProcessor> processor;
+    std::shared_ptr<ICaptureProcessor> processor;
     std::unique_ptr<WinrtCaptureSource> source;
 };
 

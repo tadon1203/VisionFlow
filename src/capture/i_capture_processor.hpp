@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <expected>
+#include <system_error>
 
 #ifdef _WIN32
 #include <d3d11.h>
@@ -22,6 +24,9 @@ class ICaptureProcessor {
     ICaptureProcessor& operator=(const ICaptureProcessor&) = default;
     ICaptureProcessor& operator=(ICaptureProcessor&&) = default;
     virtual ~ICaptureProcessor() = default;
+
+    [[nodiscard]] virtual std::expected<void, std::error_code> start() { return {}; }
+    [[nodiscard]] virtual std::expected<void, std::error_code> stop() { return {}; }
 
 #ifdef _WIN32
     virtual void onFrame(ID3D11Texture2D* texture, const CaptureFrameInfo& info) = 0;

@@ -8,6 +8,6 @@ namespace vf {
 
 App::App(const VisionFlowConfig& config)
     : App(createMouseController(config), config.app, config.capture,
-          std::make_unique<WinrtCaptureRuntime>()) {}
+          std::make_unique<WinrtCaptureRuntime>(config.inference)) {}
 
 } // namespace vf
