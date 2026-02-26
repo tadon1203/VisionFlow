@@ -56,7 +56,10 @@ main
 - `include/VisionFlow/capture/`: public capture contracts
 - `src/input/`: input domain orchestration and protocol behavior
 - `src/input/winrt_*`: WinRT-backed serial/device adapters (private boundary)
-- `src/capture/`: WinRT capture runtime and private processor boundary
+- `src/capture/common/`: capture-internal shared data types (`capture_frame_info`, `inference_result`)
+- `src/capture/backends/dml/`: DirectML/DX12 backend implementation details
+- `src/capture/winrt/`: WinRT capture source and sink boundary
+- `src/capture/`: capture orchestration and stores
 
 ## Core Components
 
@@ -154,7 +157,10 @@ main
 - `src/core/*`: app lifecycle and logging implementations
 - `src/input/*`: input orchestration and protocol implementations
 - `src/input/winrt_*`: private WinRT serial/device adapters
-- `src/capture/*`: private capture abstractions and implementations
+- `src/capture/common/*`: private capture shared data contracts
+- `src/capture/backends/dml/*`: private DML backend components
+- `src/capture/winrt/*`: private WinRT capture components
+- `src/capture/*`: private capture orchestration and stores
 - `config/*`: runtime configuration inputs
 
 ## Extension Guidelines (Core)

@@ -1,4 +1,4 @@
-#include "capture/d3d11_d3d12_interop.hpp"
+#include "capture/backends/dml/d3d11_d3d12_interop.hpp"
 
 #include <cstdint>
 #include <expected>
@@ -6,7 +6,7 @@
 
 #include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/core/logger.hpp"
-#include "capture/dx_utils.hpp"
+#include "capture/backends/dml/dx_utils.hpp"
 
 #ifdef _WIN32
 #include <DirectML.h>

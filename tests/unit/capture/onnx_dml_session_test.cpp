@@ -1,4 +1,4 @@
-#include "capture/onnx_dml_session.hpp"
+#include "capture/backends/dml/onnx_dml_session.hpp"
 
 #include <string>
 #include <vector>

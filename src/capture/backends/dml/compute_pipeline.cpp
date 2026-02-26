@@ -1,4 +1,4 @@
-#include "capture/compute_pipeline.hpp"
+#include "capture/backends/dml/compute_pipeline.hpp"
 
 #include <array>
 #include <cstddef>
@@ -9,7 +9,7 @@
 
 #include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/core/logger.hpp"
-#include "capture/dx_utils.hpp"
+#include "capture/backends/dml/dx_utils.hpp"
 
 #ifdef _WIN32
 #include <Windows.h>

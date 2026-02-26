@@ -1,4 +1,4 @@
-#include "capture/onnx_dml_capture_processor.hpp"
+#include "capture/backends/dml/onnx_dml_capture_processor.hpp"
 
 #include <expected>
 #include <memory>
@@ -10,7 +10,7 @@
 
 #include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/core/logger.hpp"
-#include "capture/onnx_dml_session.hpp"
+#include "capture/backends/dml/onnx_dml_session.hpp"
 
 namespace vf {
 

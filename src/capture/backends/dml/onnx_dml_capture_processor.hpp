@@ -11,7 +11,7 @@
 #include <thread>
 
 #include "VisionFlow/core/config.hpp"
-#include "capture/dml_image_processor.hpp"
+#include "capture/backends/dml/dml_image_processor.hpp"
 #include "capture/frame_sequencer.hpp"
 #include "capture/inference_result_store.hpp"
 #include "capture/winrt/i_winrt_frame_sink.hpp"

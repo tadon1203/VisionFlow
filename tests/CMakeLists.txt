@@ -11,7 +11,7 @@ add_executable(VisionFlowUnitTests
     ../src/capture/capture_error.cpp
     ../src/capture/frame_sequencer.cpp
     ../src/capture/inference_result_store.cpp
-    ../src/capture/onnx_dml_session.cpp
+    ../src/capture/backends/dml/onnx_dml_session.cpp
     ../src/core/app.cpp
     ../src/core/app_error.cpp
     ../src/core/config_error.cpp

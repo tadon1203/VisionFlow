@@ -7,7 +7,7 @@
 #include <mutex>
 #include <stop_token>
 
-#include "capture/capture_frame_info.hpp"
+#include "capture/common/capture_frame_info.hpp"
 
 #ifdef _WIN32
 #include <d3d11.h>

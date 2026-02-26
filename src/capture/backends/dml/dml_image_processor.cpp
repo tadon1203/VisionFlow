@@ -1,4 +1,4 @@
-#include "capture/dml_image_processor.hpp"
+#include "capture/backends/dml/dml_image_processor.hpp"
 
 #include <array>
 #include <cstdint>
@@ -8,10 +8,10 @@
 
 #include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/core/logger.hpp"
-#include "capture/compute_pipeline.hpp"
-#include "capture/d3d11_d3d12_interop.hpp"
-#include "capture/dx_utils.hpp"
-#include "capture/onnx_dml_session.hpp"
+#include "capture/backends/dml/compute_pipeline.hpp"
+#include "capture/backends/dml/d3d11_d3d12_interop.hpp"
+#include "capture/backends/dml/dx_utils.hpp"
+#include "capture/backends/dml/onnx_dml_session.hpp"
 
 #ifdef _WIN32
 #include <Windows.h>
