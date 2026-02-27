@@ -2,9 +2,7 @@
 
 #include <memory>
 
-#include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
-#include "capture/sources/winrt/winrt_frame_sink.hpp"
 #include "inference/engine/debug_inference_processor.hpp"
 #include "inference/engine/onnx_dml_inference_processor.hpp"
 
@@ -25,15 +23,6 @@ createWinrtInferenceProcessor(const InferenceConfig& inferenceConfig,
     static_cast<void>(resultStore);
     return std::move(processor);
 #endif
-}
-
-std::expected<IWinrtFrameSink*, std::error_code>
-createWinrtInferenceFrameSink(IInferenceProcessor& processor) {
-    IWinrtFrameSink* frameSink = dynamic_cast<IWinrtFrameSink*>(&processor);
-    if (frameSink == nullptr) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceInterfaceNotSupported));
-    }
-    return frameSink;
 }
 
 } // namespace vf

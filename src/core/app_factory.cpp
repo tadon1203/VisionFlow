@@ -31,13 +31,11 @@ AppComposition createAppComposition(const InferenceConfig& config) {
     }
 
     std::unique_ptr<IInferenceProcessor> inferenceProcessor = std::move(processorResult.value());
-    auto frameSinkResult = createWinrtInferenceFrameSink(*inferenceProcessor);
-    if (!frameSinkResult) {
-        VF_ERROR("Failed to create inference frame sink: {}", frameSinkResult.error().message());
+    const auto attachResult = captureRuntime->attachInferenceProcessor(*inferenceProcessor);
+    if (!attachResult) {
+        VF_ERROR("Failed to attach inference processor: {}", attachResult.error().message());
         return {};
     }
-
-    captureRuntime->setFrameSink(frameSinkResult.value());
 
     composition.captureRuntime = std::move(captureRuntime);
     composition.inferenceProcessor = std::move(inferenceProcessor);

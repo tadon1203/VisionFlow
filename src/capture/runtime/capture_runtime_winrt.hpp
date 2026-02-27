@@ -8,6 +8,7 @@
 
 namespace vf {
 
+class IInferenceProcessor;
 class IWinrtFrameSink;
 class WinrtCaptureSource;
 
@@ -22,9 +23,12 @@ class WinrtCaptureRuntime final : public ICaptureRuntime {
 
     [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config) override;
     [[nodiscard]] std::expected<void, std::error_code> stop() override;
-    void setFrameSink(IWinrtFrameSink* frameSink);
+    [[nodiscard]] std::expected<void, std::error_code>
+    attachInferenceProcessor(IInferenceProcessor& processor);
 
   private:
+    void setFrameSink(IWinrtFrameSink* frameSink);
+
     IWinrtFrameSink* frameSink = nullptr;
     std::unique_ptr<WinrtCaptureSource> source;
 };
