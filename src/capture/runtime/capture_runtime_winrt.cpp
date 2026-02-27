@@ -4,59 +4,47 @@
 #include <memory>
 #include <system_error>
 
-#include "VisionFlow/inference/i_inference_processor.hpp"
+#include "VisionFlow/capture/capture_error.hpp"
 #include "capture/sources/winrt/capture_source_winrt.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
-#include "inference/api/winrt_inference_factory.hpp"
 
 namespace vf {
 
-WinrtCaptureRuntime::WinrtCaptureRuntime(const InferenceConfig& inferenceConfig)
-    : source(std::make_unique<WinrtCaptureSource>()) {
-    WinrtInferencePipeline pipeline = createWinrtInferencePipeline(inferenceConfig);
-    processor = std::move(pipeline.processor);
-    frameSink = std::move(pipeline.frameSink);
-    source->setFrameSink(frameSink);
-}
+WinrtCaptureRuntime::WinrtCaptureRuntime() : source(std::make_unique<WinrtCaptureSource>()) {}
 
 WinrtCaptureRuntime::~WinrtCaptureRuntime() = default;
 
 std::expected<void, std::error_code> WinrtCaptureRuntime::start(const CaptureConfig& config) {
-    const std::expected<void, std::error_code> processorStartResult = processor->start();
-    if (!processorStartResult) {
-        return std::unexpected(processorStartResult.error());
+    if (frameSink == nullptr || source == nullptr) {
+        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
     }
-
-    const std::expected<void, std::error_code> sourceStartResult = source->start(config);
-    if (!sourceStartResult) {
-        const std::expected<void, std::error_code> processorStopResult = processor->stop();
-        if (!processorStopResult) {
-            return std::unexpected(processorStopResult.error());
-        }
-        return std::unexpected(sourceStartResult.error());
-    }
-
-    return {};
+    return source->start(config);
 }
 
 std::expected<void, std::error_code> WinrtCaptureRuntime::stop() {
-    std::error_code stopError;
-
-    const std::expected<void, std::error_code> sourceStopResult = source->stop();
-    if (!sourceStopResult) {
-        stopError = sourceStopResult.error();
+    if (source != nullptr) {
+        source->setFrameSink(nullptr);
     }
 
-    const std::expected<void, std::error_code> processorStopResult =
-        processor != nullptr ? processor->stop() : std::expected<void, std::error_code>{};
-    if (!processorStopResult && !stopError) {
-        stopError = processorStopResult.error();
+    std::error_code stopError;
+
+    const std::expected<void, std::error_code> sourceStopResult =
+        source != nullptr ? source->stop() : std::expected<void, std::error_code>{};
+    if (!sourceStopResult) {
+        stopError = sourceStopResult.error();
     }
 
     if (stopError) {
         return std::unexpected(stopError);
     }
     return {};
+}
+
+void WinrtCaptureRuntime::setFrameSink(IWinrtFrameSink* nextFrameSink) {
+    frameSink = nextFrameSink;
+    if (source != nullptr) {
+        source->setFrameSink(frameSink);
+    }
 }
 
 } // namespace vf

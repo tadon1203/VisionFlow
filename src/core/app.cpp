@@ -3,12 +3,15 @@
 #include <chrono>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <system_error>
 #include <thread>
 #include <utility>
 
 #include "VisionFlow/core/app_error.hpp"
 #include "VisionFlow/core/logger.hpp"
+#include "VisionFlow/inference/i_inference_processor.hpp"
+#include "VisionFlow/inference/i_inference_result_store.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
 
 namespace vf {
@@ -25,16 +28,32 @@ class NoopCaptureRuntime final : public ICaptureRuntime {
     [[nodiscard]] std::expected<void, std::error_code> stop() override { return {}; }
 };
 
+class NoopInferenceProcessor final : public IInferenceProcessor {
+  public:
+    [[nodiscard]] std::expected<void, std::error_code> start() override { return {}; }
+    [[nodiscard]] std::expected<void, std::error_code> stop() override { return {}; }
+};
+
+class NoopInferenceResultStore final : public IInferenceResultStore {
+  public:
+    void publish(InferenceResult result) override { static_cast<void>(result); }
+    [[nodiscard]] std::optional<InferenceResult> take() override { return std::nullopt; }
+};
+
 } // namespace
 
 App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig)
     : App(std::move(mouseController), appConfig, CaptureConfig{},
-          std::make_unique<NoopCaptureRuntime>()) {}
+          std::make_unique<NoopCaptureRuntime>(), std::make_unique<NoopInferenceProcessor>(),
+          std::make_unique<NoopInferenceResultStore>()) {}
 
 App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
-         CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime)
+         CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
+         std::unique_ptr<IInferenceProcessor> inferenceProcessor,
+         std::unique_ptr<IInferenceResultStore> resultStore)
     : appConfig(appConfig), captureConfig(captureConfig),
-      mouseController(std::move(mouseController)), captureRuntime(std::move(captureRuntime)) {}
+      mouseController(std::move(mouseController)), captureRuntime(std::move(captureRuntime)),
+      inferenceProcessor(std::move(inferenceProcessor)), resultStore(std::move(resultStore)) {}
 
 bool App::run() {
     VF_INFO("App run started");
@@ -51,8 +70,16 @@ bool App::run() {
 }
 
 bool App::setup() {
-    if (!mouseController || !captureRuntime) {
+    if (mouseController == nullptr || captureRuntime == nullptr || inferenceProcessor == nullptr ||
+        resultStore == nullptr) {
         VF_ERROR("App run failed: {}", makeErrorCode(AppError::CompositionFailed).message());
+        return false;
+    }
+
+    const std::expected<void, std::error_code> inferenceStartResult = inferenceProcessor->start();
+    if (!inferenceStartResult) {
+        VF_ERROR("App run failed: {} ({})", makeErrorCode(AppError::InferenceStartFailed).message(),
+                 inferenceStartResult.error().message());
         return false;
     }
 
@@ -61,6 +88,11 @@ bool App::setup() {
     if (!captureStartResult) {
         VF_ERROR("App run failed: {} ({})", makeErrorCode(AppError::CaptureStartFailed).message(),
                  captureStartResult.error().message());
+        const std::expected<void, std::error_code> inferenceStopResult = inferenceProcessor->stop();
+        if (!inferenceStopResult) {
+            VF_WARN("App setup rollback warning: inference stop failed ({})",
+                    inferenceStopResult.error().message());
+        }
         return false;
     }
 
@@ -101,19 +133,39 @@ bool App::tickLoop() {
 }
 
 void App::shutdown() {
-    const std::expected<void, std::error_code> disconnectResult = mouseController->disconnect();
-    if (!disconnectResult) {
-        VF_ERROR("App shutdown warning: mouse disconnect failed ({})",
-                 disconnectResult.error().message());
-    }
-
     const std::expected<void, std::error_code> captureStopResult = captureRuntime->stop();
     if (!captureStopResult) {
         VF_WARN("App shutdown warning: capture stop failed ({})",
                 captureStopResult.error().message());
     }
+
+    const std::expected<void, std::error_code> inferenceStopResult = inferenceProcessor->stop();
+    if (!inferenceStopResult) {
+        VF_WARN("App shutdown warning: {} ({})",
+                makeErrorCode(AppError::InferenceStopFailed).message(),
+                inferenceStopResult.error().message());
+    }
+
+    const std::expected<void, std::error_code> disconnectResult = mouseController->disconnect();
+    if (!disconnectResult) {
+        VF_ERROR("App shutdown warning: mouse disconnect failed ({})",
+                 disconnectResult.error().message());
+    }
 }
 
-void App::tick() const {}
+void App::tick() {
+    if (resultStore == nullptr) {
+        return;
+    }
+
+    const std::optional<InferenceResult> latestResult = resultStore->take();
+    if (!latestResult.has_value()) {
+        return;
+    }
+
+    applyInferenceToMouse(*latestResult);
+}
+
+void App::applyInferenceToMouse(const InferenceResult& result) { static_cast<void>(result); }
 
 } // namespace vf

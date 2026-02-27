@@ -13,6 +13,8 @@ enum class AppError : std::uint8_t {
     CompositionFailed = 1,
     PlatformInitFailed,
     CaptureStartFailed,
+    InferenceStartFailed,
+    InferenceStopFailed,
 };
 
 template <> struct ErrorDomainTraits<AppError> {

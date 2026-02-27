@@ -1,34 +1,99 @@
 #pragma once
 
+#include <expected>
 #include <functional>
 #include <stop_token>
 #include <string_view>
 #include <system_error>
+#include <utility>
 
+#include "VisionFlow/capture/capture_error.hpp"
+#include "VisionFlow/core/logger.hpp"
+#include "VisionFlow/inference/i_inference_result_store.hpp"
 #include "capture/pipeline/frame_sequencer.hpp"
-#include "capture/sources/winrt/winrt_capture_frame.hpp"
-#include "inference/engine/inference_result_store.hpp"
 #include "inference/platform/dml/dml_image_processor.hpp"
+#include "inference/platform/dml/onnx_dml_session.hpp"
 
 namespace vf {
 
-class OnnxDmlSession;
-
-class DmlInferenceWorker {
+template <typename TFrame> class DmlInferenceWorker {
   public:
     using FaultHandler = std::function<void(std::string_view reason, std::error_code errorCode)>;
 
-    DmlInferenceWorker(FrameSequencer<WinrtCaptureFrame>& frameSequencer, OnnxDmlSession& session,
-                       DmlImageProcessor& dmlImageProcessor, InferenceResultStore& resultStore,
-                       FaultHandler faultHandler);
+    DmlInferenceWorker(FrameSequencer<TFrame>* frameSequencer, OnnxDmlSession* session,
+                       DmlImageProcessor* dmlImageProcessor, IInferenceResultStore* resultStore,
+                       FaultHandler faultHandler = {})
+        : frameSequencer(frameSequencer), session(session), dmlImageProcessor(dmlImageProcessor),
+          resultStore(resultStore), faultHandler(std::move(faultHandler)) {}
 
-    void run(const std::stop_token& stopToken);
+    void setFaultHandler(FaultHandler nextFaultHandler) {
+        faultHandler = std::move(nextFaultHandler);
+    }
+
+    void run(const std::stop_token& stopToken) {
+        if (frameSequencer == nullptr || session == nullptr || dmlImageProcessor == nullptr ||
+            resultStore == nullptr) {
+            if (faultHandler) {
+                faultHandler("OnnxDmlCaptureProcessor runtime component is missing",
+                             makeErrorCode(CaptureError::InvalidState));
+            }
+            return;
+        }
+
+        while (!stopToken.stop_requested()) {
+            TFrame frame;
+            if (!frameSequencer->waitAndTakeLatest(stopToken, frame)) {
+                continue;
+            }
+
+            if (frame.texture == nullptr) {
+                if (faultHandler) {
+                    faultHandler("OnnxDmlCaptureProcessor runtime component is missing",
+                                 makeErrorCode(CaptureError::InvalidState));
+                }
+                return;
+            }
+
+            const std::expected<DmlImageProcessor::InitializeResult, std::error_code>
+                initializeResult = dmlImageProcessor->initialize(frame.texture.get());
+            if (!initializeResult) {
+                if (faultHandler) {
+                    faultHandler("OnnxDmlCaptureProcessor GPU initialization failed",
+                                 initializeResult.error());
+                }
+                return;
+            }
+
+            const std::expected<DmlImageProcessor::DispatchResult, std::error_code> dispatchResult =
+                dmlImageProcessor->dispatch(frame.texture.get(), frame.fenceValue);
+            if (!dispatchResult) {
+                if (faultHandler) {
+                    faultHandler("OnnxDmlCaptureProcessor preprocess failed",
+                                 dispatchResult.error());
+                }
+                return;
+            }
+
+            const std::expected<InferenceResult, std::error_code> inferenceResult =
+                session->runWithGpuInput(frame.info.systemRelativeTime100ns,
+                                         dispatchResult->outputResource,
+                                         dispatchResult->outputBytes);
+
+            if (!inferenceResult) {
+                VF_WARN("OnnxDmlCaptureProcessor inference failed: {}",
+                        inferenceResult.error().message());
+                continue;
+            }
+
+            resultStore->publish(inferenceResult.value());
+        }
+    }
 
   private:
-    FrameSequencer<WinrtCaptureFrame>& frameSequencer;
-    OnnxDmlSession& session;
-    DmlImageProcessor& dmlImageProcessor;
-    InferenceResultStore& resultStore;
+    FrameSequencer<TFrame>* frameSequencer;
+    OnnxDmlSession* session;
+    DmlImageProcessor* dmlImageProcessor;
+    IInferenceResultStore* resultStore;
     FaultHandler faultHandler;
 };
 

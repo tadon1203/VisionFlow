@@ -11,9 +11,9 @@ void InferenceResultStore::publish(InferenceResult result) {
     latestResult = std::move(result);
 }
 
-std::optional<InferenceResult> InferenceResultStore::latest() const {
+std::optional<InferenceResult> InferenceResultStore::take() {
     std::scoped_lock lock(mutex);
-    return latestResult;
+    return std::exchange(latestResult, std::nullopt);
 }
 
 } // namespace vf

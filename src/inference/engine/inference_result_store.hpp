@@ -3,17 +3,17 @@
 #include <mutex>
 #include <optional>
 
-#include "capture/common/inference_result.hpp"
+#include "VisionFlow/inference/i_inference_result_store.hpp"
 
 namespace vf {
 
-class InferenceResultStore {
+class InferenceResultStore final : public IInferenceResultStore {
   public:
-    void publish(InferenceResult result);
-    [[nodiscard]] std::optional<InferenceResult> latest() const;
+    void publish(InferenceResult result) override;
+    [[nodiscard]] std::optional<InferenceResult> take() override;
 
   private:
-    mutable std::mutex mutex;
+    std::mutex mutex;
     std::optional<InferenceResult> latestResult;
 };
 

@@ -37,13 +37,17 @@ main
   -> loadConfig()
   -> WinRtPlatformContext (RAII)
   -> App(config)
+    -> IInferenceProcessor (interface)
+      -> OnnxDmlCaptureProcessor
+        -> OnnxDmlSession (DirectML + IO Binding)
+      -> IInferenceResultStore (interface)
+        -> InferenceResultStore
     -> CaptureRuntime (interface)
       -> WinrtCaptureRuntime (implementation)
         -> WinrtCaptureSource
           -> WinrtCaptureSession
           -> IWinrtFrameSink (private src boundary)
             -> OnnxDmlCaptureProcessor
-              -> OnnxDmlSession (DirectML + IO Binding)
     -> createMouseController()
       -> IMouseController (interface)
         -> MakcuMouseController (implementation, `MakcuController` is an alias)
@@ -77,6 +81,9 @@ main
 
 ### App
 - Owns one `IMouseController`
+- Owns one `ICaptureRuntime`
+- Owns one `IInferenceProcessor`
+- Owns one `IInferenceResultStore`
 - Handles startup/shutdown flow
 - Acts as reconnect supervisor: retries `connect()` for recoverable failures with a fixed interval
 - Initializes logging and drives the main loop
@@ -105,10 +112,12 @@ main
 - `WinrtCaptureSource` owns high-level capture state transitions and frame delivery to `IWinrtFrameSink`
 - `WinrtCaptureSession` owns WinRT/D3D device setup, frame pool lifecycle, and capture session start/stop
 - `WinrtCaptureSource` delegates platform session management to `WinrtCaptureSession`
+- `WinrtCaptureRuntime` is capture-only and does not own inference lifecycle
+- `AppFactory` wires `WinrtCaptureRuntime` to `IWinrtFrameSink*` exported by the inference processor
 
 ## Platform Boundary and Composition
 - `main` owns platform runtime scope and initializes platform context
-- `App` is the composition root for capture runtime and mouse controller
+- `AppFactory` is the composition root for capture runtime, inference processor, and result store
 - Controller composition still uses `createMouseController()`
 - `MakcuMouseController` depends on abstractions (`ISerialPort`, `IDeviceScanner`)
 - Platform concrete types stay in private `src/` headers and source files
@@ -126,6 +135,7 @@ main
 6. If connect fails, return error immediately; retry policy is handled by `App`
 
 ### Capture Path
+0. App starts inference processor first, then starts capture runtime
 1. Enumerate display monitors
 2. Select configured display index (fallback to 0 when out of range)
 3. Create `GraphicsCaptureItem` from selected monitor
@@ -141,6 +151,11 @@ main
   - `onnx_dml_session_common.cpp`
   - `onnx_dml_session_win32_dml.cpp`
   - `onnx_dml_session_stub.cpp`
+
+### Inference Result Path
+1. Inference worker publishes result to `IInferenceResultStore`
+2. `App::tick()` consumes one result via `IInferenceResultStore::take()`
+3. App applies the result to runtime actions (mouse/output behavior)
 
 ### Move Path
 1. `move(dx, dy)` writes pending command under lock

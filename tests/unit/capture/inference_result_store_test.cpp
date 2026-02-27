@@ -11,7 +11,7 @@ namespace {
 TEST(InferenceResultStoreTest, ReturnsEmptyBeforePublish) {
     InferenceResultStore store;
 
-    const std::optional<InferenceResult> result = store.latest();
+    const std::optional<InferenceResult> result = store.take();
     EXPECT_FALSE(result.has_value());
 }
 
@@ -29,7 +29,7 @@ TEST(InferenceResultStoreTest, StoresLatestPublishedResult) {
     store.publish(std::move(first));
     store.publish(std::move(second));
 
-    const std::optional<InferenceResult> result = store.latest();
+    const std::optional<InferenceResult> result = store.take();
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result->frameTimestamp100ns, 20);
     ASSERT_EQ(result->tensors.size(), 1U);
@@ -37,6 +37,9 @@ TEST(InferenceResultStoreTest, StoresLatestPublishedResult) {
     ASSERT_EQ(result->tensors[0].values.size(), 2U);
     EXPECT_FLOAT_EQ(result->tensors[0].values[0], 0.2F);
     EXPECT_FLOAT_EQ(result->tensors[0].values[1], 0.8F);
+
+    const std::optional<InferenceResult> secondTake = store.take();
+    EXPECT_FALSE(secondTake.has_value());
 }
 
 } // namespace

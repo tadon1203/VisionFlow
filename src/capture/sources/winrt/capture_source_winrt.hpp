@@ -29,7 +29,7 @@ class WinrtCaptureSource {
     WinrtCaptureSource& operator=(WinrtCaptureSource&&) = delete;
     ~WinrtCaptureSource();
 
-    void setFrameSink(std::shared_ptr<IWinrtFrameSink> frameSink);
+    void setFrameSink(IWinrtFrameSink* frameSink);
     [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config);
     [[nodiscard]] std::expected<void, std::error_code> stop();
 
@@ -49,7 +49,7 @@ class WinrtCaptureSource {
 
     std::mutex stateMutex;
     CaptureState state = CaptureState::Idle;
-    std::shared_ptr<IWinrtFrameSink> frameSink;
+    IWinrtFrameSink* frameSink = nullptr;
 
 #ifdef _WIN32
     std::unique_ptr<WinrtCaptureSession> session;

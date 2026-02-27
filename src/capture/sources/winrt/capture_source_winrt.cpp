@@ -34,9 +34,9 @@ WinrtCaptureSource::~WinrtCaptureSource() {
     }
 }
 
-void WinrtCaptureSource::setFrameSink(std::shared_ptr<IWinrtFrameSink> nextFrameSink) {
+void WinrtCaptureSource::setFrameSink(IWinrtFrameSink* nextFrameSink) {
     std::scoped_lock lock(stateMutex);
-    frameSink = std::move(nextFrameSink);
+    frameSink = nextFrameSink;
 }
 
 std::expected<void, std::error_code> WinrtCaptureSource::start(const CaptureConfig& config) {
@@ -163,7 +163,7 @@ void WinrtCaptureSource::onFrameArrived(
     const winrt::Windows::Foundation::IInspectable& args) {
     static_cast<void>(args);
 
-    std::shared_ptr<IWinrtFrameSink> frameSinkSnapshot;
+    IWinrtFrameSink* frameSinkSnapshot = nullptr;
     {
         std::scoped_lock lock(stateMutex);
         if (state != CaptureState::Running) {

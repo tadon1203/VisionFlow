@@ -12,11 +12,11 @@
 
 #include "VisionFlow/core/config.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
+#include "VisionFlow/inference/i_inference_result_store.hpp"
 #include "capture/pipeline/frame_sequencer.hpp"
 #include "capture/sources/winrt/winrt_capture_frame.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
 #include "inference/engine/dml_inference_worker.hpp"
-#include "inference/engine/inference_result_store.hpp"
 #include "inference/platform/dml/dml_image_processor.hpp"
 
 namespace vf {
@@ -25,7 +25,15 @@ class OnnxDmlSession;
 
 class OnnxDmlCaptureProcessor final : public IInferenceProcessor, public IWinrtFrameSink {
   public:
-    explicit OnnxDmlCaptureProcessor(InferenceConfig config);
+    static std::expected<std::unique_ptr<OnnxDmlCaptureProcessor>, std::error_code>
+    createDefault(InferenceConfig config, IInferenceResultStore* resultStore);
+
+    OnnxDmlCaptureProcessor(InferenceConfig config,
+                            std::unique_ptr<FrameSequencer<WinrtCaptureFrame>> frameSequencer,
+                            IInferenceResultStore* resultStore,
+                            std::unique_ptr<OnnxDmlSession> session,
+                            std::unique_ptr<DmlImageProcessor> dmlImageProcessor,
+                            std::unique_ptr<DmlInferenceWorker<WinrtCaptureFrame>> inferenceWorker);
     OnnxDmlCaptureProcessor(const OnnxDmlCaptureProcessor&) = delete;
     OnnxDmlCaptureProcessor(OnnxDmlCaptureProcessor&&) = delete;
     OnnxDmlCaptureProcessor& operator=(const OnnxDmlCaptureProcessor&) = delete;
@@ -53,15 +61,14 @@ class OnnxDmlCaptureProcessor final : public IInferenceProcessor, public IWinrtF
     std::mutex stateMutex;
     ProcessorState state = ProcessorState::Idle;
 
-    std::jthread workerThread;
-    FrameSequencer<WinrtCaptureFrame> frameSequencer;
+    std::unique_ptr<FrameSequencer<WinrtCaptureFrame>> frameSequencer;
     std::atomic<std::uint64_t> frameSequence{0};
 
+    IInferenceResultStore* resultStore = nullptr;
     std::unique_ptr<OnnxDmlSession> session;
     std::unique_ptr<DmlImageProcessor> dmlImageProcessor;
-    std::unique_ptr<DmlInferenceWorker> inferenceWorker;
-
-    InferenceResultStore resultStore;
+    std::unique_ptr<DmlInferenceWorker<WinrtCaptureFrame>> inferenceWorker;
+    std::jthread workerThread;
 };
 
 } // namespace vf

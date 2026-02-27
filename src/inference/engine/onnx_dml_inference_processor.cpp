@@ -10,12 +10,45 @@
 
 #include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/core/logger.hpp"
-#include "inference/platform/dml/onnx_dml_session.hpp"
 
 namespace vf {
+std::expected<std::unique_ptr<OnnxDmlCaptureProcessor>, std::error_code>
+OnnxDmlCaptureProcessor::createDefault(InferenceConfig config, IInferenceResultStore* resultStore) {
+    if (resultStore == nullptr) {
+        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
+    }
 
-OnnxDmlCaptureProcessor::OnnxDmlCaptureProcessor(InferenceConfig config)
-    : config(std::move(config)) {}
+    try {
+        auto sequencer = std::make_unique<FrameSequencer<WinrtCaptureFrame>>();
+        auto dmlSession = std::make_unique<OnnxDmlSession>(config.modelPath);
+        auto imageProcessor = std::make_unique<DmlImageProcessor>(*dmlSession);
+        auto worker = std::make_unique<DmlInferenceWorker<WinrtCaptureFrame>>(
+            sequencer.get(), dmlSession.get(), imageProcessor.get(), resultStore);
+
+        return std::make_unique<OnnxDmlCaptureProcessor>(
+            std::move(config), std::move(sequencer), resultStore, std::move(dmlSession),
+            std::move(imageProcessor), std::move(worker));
+    } catch (...) {
+        VF_ERROR("OnnxDmlCaptureProcessor createDefault failed during component construction");
+        return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+    }
+}
+
+OnnxDmlCaptureProcessor::OnnxDmlCaptureProcessor(
+    InferenceConfig config, std::unique_ptr<FrameSequencer<WinrtCaptureFrame>> frameSequencer,
+    IInferenceResultStore* resultStore, std::unique_ptr<OnnxDmlSession> session,
+    std::unique_ptr<DmlImageProcessor> dmlImageProcessor,
+    std::unique_ptr<DmlInferenceWorker<WinrtCaptureFrame>> inferenceWorker)
+    : config(std::move(config)), frameSequencer(std::move(frameSequencer)),
+      resultStore(resultStore), session(std::move(session)),
+      dmlImageProcessor(std::move(dmlImageProcessor)), inferenceWorker(std::move(inferenceWorker)) {
+    if (this->inferenceWorker != nullptr) {
+        this->inferenceWorker->setFaultHandler(
+            [this](std::string_view reason, std::error_code errorCode) {
+                transitionToFault(reason, errorCode);
+            });
+    }
+}
 
 OnnxDmlCaptureProcessor::~OnnxDmlCaptureProcessor() noexcept {
     try {
@@ -41,16 +74,17 @@ std::expected<void, std::error_code> OnnxDmlCaptureProcessor::start() {
         state = ProcessorState::Starting;
     }
 
-    session = std::make_unique<OnnxDmlSession>(config.modelPath);
-    dmlImageProcessor = std::make_unique<DmlImageProcessor>(*session);
-    inferenceWorker = std::make_unique<DmlInferenceWorker>(
-        frameSequencer, *session, *dmlImageProcessor, resultStore,
-        [this](std::string_view reason, std::error_code errorCode) {
-            transitionToFault(reason, errorCode);
-        });
+    if (frameSequencer == nullptr || resultStore == nullptr || session == nullptr ||
+        dmlImageProcessor == nullptr || inferenceWorker == nullptr) {
+        {
+            std::scoped_lock lock(stateMutex);
+            state = ProcessorState::Fault;
+        }
+        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
+    }
 
     frameSequence.store(0, std::memory_order_release);
-    frameSequencer.startAccepting();
+    frameSequencer->startAccepting();
     workerThread =
         std::jthread([this](const std::stop_token& stopToken) { inferenceLoop(stopToken); });
 
@@ -76,12 +110,12 @@ std::expected<void, std::error_code> OnnxDmlCaptureProcessor::stop() {
         state = ProcessorState::Stopping;
     }
 
-    frameSequencer.stopAccepting();
+    frameSequencer->stopAccepting();
     if (workerThread.joinable()) {
         workerThread.request_stop();
         workerThread.join();
     }
-    frameSequencer.clear();
+    frameSequencer->clear();
 
     std::error_code stopError;
     if (session != nullptr) {
@@ -94,10 +128,6 @@ std::expected<void, std::error_code> OnnxDmlCaptureProcessor::stop() {
     if (dmlImageProcessor != nullptr) {
         dmlImageProcessor->shutdown();
     }
-
-    dmlImageProcessor = nullptr;
-    inferenceWorker = nullptr;
-    session.reset();
 
     {
         std::scoped_lock lock(stateMutex);
@@ -139,7 +169,7 @@ void OnnxDmlCaptureProcessor::onFrame(ID3D11Texture2D* texture, const CaptureFra
     frame.texture.copy_from(texture);
     frame.info = info;
     frame.fenceValue = fenceValue;
-    frameSequencer.submit(std::move(frame));
+    frameSequencer->submit(std::move(frame));
 }
 
 void OnnxDmlCaptureProcessor::inferenceLoop(const std::stop_token& stopToken) {

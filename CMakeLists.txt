@@ -118,7 +118,6 @@ target_link_libraries(vf_capture
 add_library(vf_inference STATIC
     src/inference/api/winrt_inference_factory.cpp
     src/inference/engine/debug_inference_processor.cpp
-    src/inference/engine/dml_inference_worker.cpp
     src/inference/engine/inference_result_store.cpp
     src/inference/engine/onnx_dml_inference_processor.cpp
     src/inference/platform/dml/compute_pipeline.cpp
