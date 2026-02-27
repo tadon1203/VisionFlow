@@ -26,7 +26,6 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::start(const CaptureCon
     const auto beforeStartResult =
         runtimeState->beforeStart(frameSink != nullptr, source != nullptr);
     if (!beforeStartResult) {
-        lastError = beforeStartResult.error();
         return std::unexpected(beforeStartResult.error());
     }
 
@@ -34,12 +33,10 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::start(const CaptureCon
         source != nullptr ? source->start(config) : std::expected<void, std::error_code>{};
     if (!sourceStartResult) {
         runtimeState->onStartFailed();
-        lastError = sourceStartResult.error();
         return std::unexpected(sourceStartResult.error());
     }
 
     runtimeState->onStartSucceeded();
-    lastError.clear();
     return {};
 }
 
@@ -68,30 +65,27 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::stop() {
     runtimeState->onStopCompleted(!stopError);
 
     if (stopError) {
-        lastError = stopError;
         return std::unexpected(stopError);
     }
 
-    lastError.clear();
     return {};
 }
 
 std::expected<void, std::error_code> WinrtCaptureRuntime::poll() {
+    if (runtimeState == nullptr) {
+        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
+    }
+
+    const auto runtimePollResult = runtimeState->poll();
+    if (!runtimePollResult) {
+        return std::unexpected(runtimePollResult.error());
+    }
+
     if (source == nullptr) {
         return std::unexpected(makeErrorCode(CaptureError::InvalidState));
     }
 
-    const auto sourcePollResult = source->poll();
-    if (!sourcePollResult) {
-        lastError = sourcePollResult.error();
-        return std::unexpected(sourcePollResult.error());
-    }
-
-    if (lastError) {
-        return std::unexpected(lastError);
-    }
-
-    return {};
+    return source->poll();
 }
 
 std::expected<void, std::error_code>

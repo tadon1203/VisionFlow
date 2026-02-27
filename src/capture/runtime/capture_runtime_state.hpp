@@ -17,6 +17,7 @@ class CaptureRuntimeStateMachine {
 
     [[nodiscard]] std::expected<void, std::error_code> beforeStop();
     void onStopCompleted(bool succeeded);
+    [[nodiscard]] std::expected<void, std::error_code> poll() const;
 
   private:
     enum class RuntimeState : std::uint8_t {
@@ -27,7 +28,7 @@ class CaptureRuntimeStateMachine {
         Fault,
     };
 
-    std::mutex mutex;
+    mutable std::mutex mutex;
     RuntimeState state = RuntimeState::Idle;
 };
 

@@ -8,7 +8,6 @@
 #include <thread>
 #include <utility>
 
-#include "VisionFlow/core/app_error.hpp"
 #include "VisionFlow/core/logger.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
 #include "VisionFlow/inference/i_inference_result_store.hpp"
@@ -79,28 +78,27 @@ std::expected<void, std::error_code> App::run() {
 std::expected<void, std::error_code> App::setup() {
     if (mouseController == nullptr || captureRuntime == nullptr || inferenceProcessor == nullptr ||
         resultStore == nullptr) {
-        VF_ERROR("App run failed: {}", makeErrorCode(AppError::CompositionFailed).message());
-        return std::unexpected(makeErrorCode(AppError::CompositionFailed));
+        VF_ERROR("App run failed: required component is null");
+        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
     }
 
     const std::expected<void, std::error_code> inferenceStartResult = inferenceProcessor->start();
     if (!inferenceStartResult) {
-        VF_ERROR("App run failed: {} ({})", makeErrorCode(AppError::InferenceStartFailed).message(),
+        VF_ERROR("App run failed: inference start failed ({})",
                  inferenceStartResult.error().message());
-        return std::unexpected(makeErrorCode(AppError::InferenceStartFailed));
+        return std::unexpected(inferenceStartResult.error());
     }
 
     const std::expected<void, std::error_code> captureStartResult =
         captureRuntime->start(captureConfig);
     if (!captureStartResult) {
-        VF_ERROR("App run failed: {} ({})", makeErrorCode(AppError::CaptureStartFailed).message(),
-                 captureStartResult.error().message());
+        VF_ERROR("App run failed: capture start failed ({})", captureStartResult.error().message());
         const std::expected<void, std::error_code> inferenceStopResult = inferenceProcessor->stop();
         if (!inferenceStopResult) {
             VF_WARN("App setup rollback warning: inference stop failed ({})",
                     inferenceStopResult.error().message());
         }
-        return std::unexpected(makeErrorCode(AppError::CaptureStartFailed));
+        return std::unexpected(captureStartResult.error());
     }
 
     running = true;
@@ -109,37 +107,7 @@ std::expected<void, std::error_code> App::setup() {
 
 std::expected<void, std::error_code> App::tickLoop() {
     while (running) {
-        const std::expected<void, std::error_code> capturePollResult = captureRuntime->poll();
-        if (!capturePollResult) {
-            VF_ERROR("App loop failed: capture poll error ({})",
-                     capturePollResult.error().message());
-            running = false;
-            return std::unexpected(capturePollResult.error());
-        }
-
-        const std::expected<void, std::error_code> inferencePollResult = inferenceProcessor->poll();
-        if (!inferencePollResult) {
-            VF_ERROR("App loop failed: inference poll error ({})",
-                     inferencePollResult.error().message());
-            running = false;
-            return std::unexpected(inferencePollResult.error());
-        }
-
-        const std::expected<void, std::error_code> connectResult = mouseController->connect();
-        if (!connectResult) {
-            VF_WARN("App reconnect attempt failed: {}", connectResult.error().message());
-            if (!mouseController->shouldRetryConnect(connectResult.error())) {
-                VF_ERROR("App run failed: unrecoverable connect error ({})",
-                         connectResult.error().message());
-                running = false;
-                return std::unexpected(connectResult.error());
-            }
-
-            std::this_thread::sleep_for(appConfig.reconnectRetryMs);
-            continue;
-        }
-
-        const std::expected<void, std::error_code> tickResult = tick();
+        const std::expected<void, std::error_code> tickResult = tickOnce();
         if (!tickResult) {
             running = false;
             return std::unexpected(tickResult.error());
@@ -160,8 +128,7 @@ void App::shutdown() {
 
     const std::expected<void, std::error_code> inferenceStopResult = inferenceProcessor->stop();
     if (!inferenceStopResult) {
-        VF_WARN("App shutdown warning: {} ({})",
-                makeErrorCode(AppError::InferenceStopFailed).message(),
+        VF_WARN("App shutdown warning: inference stop failed ({})",
                 inferenceStopResult.error().message());
     }
 
@@ -172,9 +139,35 @@ void App::shutdown() {
     }
 }
 
-std::expected<void, std::error_code> App::tick() {
+std::expected<void, std::error_code> App::tickOnce() {
+    const std::expected<void, std::error_code> capturePollResult = captureRuntime->poll();
+    if (!capturePollResult) {
+        VF_ERROR("App loop failed: capture poll error ({})", capturePollResult.error().message());
+        return std::unexpected(capturePollResult.error());
+    }
+
+    const std::expected<void, std::error_code> inferencePollResult = inferenceProcessor->poll();
+    if (!inferencePollResult) {
+        VF_ERROR("App loop failed: inference poll error ({})",
+                 inferencePollResult.error().message());
+        return std::unexpected(inferencePollResult.error());
+    }
+
+    const std::expected<void, std::error_code> connectResult = mouseController->connect();
+    if (!connectResult) {
+        VF_WARN("App reconnect attempt failed: {}", connectResult.error().message());
+        if (!mouseController->shouldRetryConnect(connectResult.error())) {
+            VF_ERROR("App run failed: unrecoverable connect error ({})",
+                     connectResult.error().message());
+            return std::unexpected(connectResult.error());
+        }
+
+        std::this_thread::sleep_for(appConfig.reconnectRetryMs);
+        return {};
+    }
+
     if (resultStore == nullptr) {
-        return std::unexpected(makeErrorCode(AppError::CompositionFailed));
+        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
     }
 
     const std::optional<InferenceResult> latestResult = resultStore->take();

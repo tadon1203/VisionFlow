@@ -47,13 +47,14 @@ class MockInferenceResultStore : public IInferenceResultStore {
     MOCK_METHOD((std::optional<InferenceResult>), take, (), (override));
 };
 
-TEST(AppTest, RunReturnsCompositionErrorWhenControllerIsNull) {
+TEST(AppTest, RunReturnsInvalidArgumentWhenControllerIsNull) {
     App app(nullptr, AppConfig{});
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::invalid_argument));
 }
 
-TEST(AppTest, RunReturnsCaptureStartErrorWhenCaptureStartFails) {
+TEST(AppTest, RunPropagatesCaptureStartError) {
     auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
     auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
@@ -70,9 +71,10 @@ TEST(AppTest, RunReturnsCaptureStartErrorWhenCaptureStartFails) {
             std::move(inference), std::move(store));
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::io_error));
 }
 
-TEST(AppTest, RunReturnsInferenceStartErrorWhenInferenceStartFails) {
+TEST(AppTest, RunPropagatesInferenceStartError) {
     auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
     auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
@@ -85,6 +87,37 @@ TEST(AppTest, RunReturnsInferenceStartErrorWhenInferenceStartFails) {
             std::move(inference), std::move(store));
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::io_error));
+}
+
+TEST(AppTest, RunPropagatesCapturePollError) {
+    auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
+    auto* capturePtr = capture.get();
+    auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
+    auto* inferencePtr = inference.get();
+    auto store = std::make_unique<testing::StrictMock<MockInferenceResultStore>>();
+
+    EXPECT_CALL(*inferencePtr, start())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, start(testing::_))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, poll())
+        .WillOnce(testing::Return(
+            std::unexpected(std::make_error_code(std::errc::state_not_recoverable))));
+    EXPECT_CALL(*inferencePtr, poll()).Times(0);
+    EXPECT_CALL(*capturePtr, stop())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*inferencePtr, stop())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*mouse, disconnect())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+
+    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, std::move(capture),
+            std::move(inference), std::move(store));
+    const auto result = app.run();
+    EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::state_not_recoverable));
 }
 
 TEST(AppTest, RunReturnsFalseWhenConnectFails) {
@@ -123,6 +156,7 @@ TEST(AppTest, RunReturnsFalseWhenConnectFails) {
             std::move(store));
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), std::make_error_code(std::errc::io_error));
 }
 
 TEST(AppTest, RunRetriesConnectForRecoverableErrorThenFails) {

@@ -34,7 +34,6 @@ class WinrtCaptureRuntime final : public ICaptureRuntime {
     IWinrtFrameSink* frameSink = nullptr;
     std::unique_ptr<WinrtCaptureSource> source;
     std::unique_ptr<CaptureRuntimeStateMachine> runtimeState;
-    std::error_code lastError;
 };
 
 } // namespace vf

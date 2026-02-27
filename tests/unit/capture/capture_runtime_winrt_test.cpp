@@ -72,5 +72,16 @@ TEST(WinrtCaptureRuntimeTest, PollSucceedsWhenNoFaultIsPresent) {
     EXPECT_TRUE(result.has_value());
 }
 
+TEST(WinrtCaptureRuntimeTest, PollSucceedsAfterRecoverableStartValidationFailure) {
+    WinrtCaptureRuntime runtime;
+
+    const auto startResult = runtime.start(CaptureConfig{});
+    ASSERT_FALSE(startResult.has_value());
+    EXPECT_EQ(startResult.error(), makeErrorCode(CaptureError::InvalidState));
+
+    const auto pollResult = runtime.poll();
+    EXPECT_TRUE(pollResult.has_value());
+}
+
 } // namespace
 } // namespace vf

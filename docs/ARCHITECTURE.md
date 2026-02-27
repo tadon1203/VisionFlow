@@ -156,7 +156,7 @@ main
 
 ### Inference Result Path
 1. Inference worker publishes result to `IInferenceResultStore`
-2. `App::tick()` consumes one result via `IInferenceResultStore::take()`
+2. `App::tickOnce()` consumes one result via `IInferenceResultStore::take()`
 3. App applies the result to runtime actions (mouse/output behavior)
 
 ### Move Path
@@ -176,7 +176,10 @@ main
 - Config loading returns `std::expected<VisionFlowConfig, std::error_code>`
 - Failures are logged at the point of decision
 - Recoverable connection failures return to `Idle` to allow retry
-- `App` classifies connection errors into retryable vs non-retryable paths
+- `App` propagates component error codes directly (no app-layer remapping)
+- `poll()` contract is fault-only failure:
+  - Success in `Idle`, `Starting`, `Running`, `Stopping`
+  - Failure in `Fault` or structurally invalid state (for example missing required dependency)
 
 ## Concurrency Model
 - `MakcuMouseController` is the sole owner of its worker thread

@@ -59,4 +59,12 @@ void CaptureRuntimeStateMachine::onStopCompleted(bool succeeded) {
     state = succeeded ? RuntimeState::Idle : RuntimeState::Fault;
 }
 
+std::expected<void, std::error_code> CaptureRuntimeStateMachine::poll() const {
+    std::scoped_lock lock(mutex);
+    if (state == RuntimeState::Fault) {
+        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
+    }
+    return {};
+}
+
 } // namespace vf

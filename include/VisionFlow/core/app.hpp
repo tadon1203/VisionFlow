@@ -35,7 +35,7 @@ class App {
     [[nodiscard]] std::expected<void, std::error_code> setup();
     [[nodiscard]] std::expected<void, std::error_code> tickLoop();
     void shutdown();
-    [[nodiscard]] std::expected<void, std::error_code> tick();
+    [[nodiscard]] std::expected<void, std::error_code> tickOnce();
     [[nodiscard]] std::expected<void, std::error_code>
     applyInferenceToMouse(const InferenceResult& result);
 };
