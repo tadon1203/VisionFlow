@@ -1,4 +1,4 @@
-#include "capture/frame_sequencer.hpp"
+#include "capture/pipeline/frame_sequencer.hpp"
 
 #include <chrono>
 #include <future>

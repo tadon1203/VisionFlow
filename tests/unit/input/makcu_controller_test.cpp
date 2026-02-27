@@ -1,5 +1,3 @@
-#include "VisionFlow/input/makcu_controller.hpp"
-
 #include <algorithm>
 #include <chrono>
 #include <condition_variable>
@@ -23,6 +21,7 @@
 
 #include "VisionFlow/input/i_device_scanner.hpp"
 #include "VisionFlow/input/i_serial_port.hpp"
+#include "VisionFlow/input/makcu_mouse_controller.hpp"
 #include "VisionFlow/input/mouse_error.hpp"
 
 namespace vf {
@@ -143,7 +142,7 @@ TEST(MakcuControllerTest, ConnectFailsWhenPortScanFails) {
     EXPECT_CALL(*scannerPtr, findPortByHardwareId(testing::_))
         .WillOnce(testing::Return(std::unexpected(makeErrorCode(MouseError::PortNotFound))));
 
-    MakcuController controller(std::move(serial), std::move(scanner), MakcuConfig{});
+    MakcuMouseController controller(std::move(serial), std::move(scanner), MakcuConfig{});
     const auto result = controller.connect();
 
     ASSERT_FALSE(result.has_value());
@@ -161,7 +160,7 @@ TEST(MakcuControllerTest, ConnectFailsWhenOpenFails) {
     EXPECT_CALL(*serialPtr, open("COM9", 115200U))
         .WillOnce(testing::Return(std::unexpected(makeErrorCode(MouseError::PortOpenFailed))));
 
-    MakcuController controller(std::move(serial), std::move(scanner), MakcuConfig{});
+    MakcuMouseController controller(std::move(serial), std::move(scanner), MakcuConfig{});
     const auto result = controller.connect();
 
     ASSERT_FALSE(result.has_value());
@@ -185,7 +184,7 @@ TEST(MakcuControllerTest, ConnectClosesPortWhenHandshakeFails) {
     EXPECT_CALL(*serialPtr, close())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
 
-    MakcuController controller(std::move(serial), std::move(scanner), MakcuConfig{});
+    MakcuMouseController controller(std::move(serial), std::move(scanner), MakcuConfig{});
     const auto result = controller.connect();
 
     ASSERT_FALSE(result.has_value());
@@ -196,7 +195,7 @@ TEST(MakcuControllerTest, MoveFailsWhenControllerIsNotReady) {
     auto serial = std::make_unique<testing::StrictMock<MockSerialPort>>();
     auto scanner = std::make_unique<testing::StrictMock<MockDeviceScanner>>();
 
-    MakcuController controller(std::move(serial), std::move(scanner), MakcuConfig{});
+    MakcuMouseController controller(std::move(serial), std::move(scanner), MakcuConfig{});
     const auto result = controller.move(1.0F, 1.0F);
 
     ASSERT_FALSE(result.has_value());
@@ -249,7 +248,7 @@ TEST(MakcuControllerTest, ReconnectsAfterMoveWriteFailure) {
             return std::expected<void, std::error_code>{};
         });
 
-    MakcuController controller(std::move(serial), std::move(scanner), MakcuConfig{});
+    MakcuMouseController controller(std::move(serial), std::move(scanner), MakcuConfig{});
     ASSERT_TRUE(controller.connect().has_value());
     ASSERT_TRUE(controller.move(1.0F, 1.0F).has_value());
 
@@ -289,7 +288,7 @@ TEST(MakcuControllerTest, MoveFailsWhenAckTimeoutOccurs) {
     EXPECT_CALL(*serialPtr, close())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
 
-    MakcuController controller(std::move(serial), std::move(scanner), MakcuConfig{});
+    MakcuMouseController controller(std::move(serial), std::move(scanner), MakcuConfig{});
     ASSERT_TRUE(controller.connect().has_value());
     ASSERT_TRUE(controller.move(5.0F, 7.0F).has_value());
 
@@ -312,7 +311,7 @@ TEST(MakcuControllerTest, AccumulatesFractionalMoveInputsIntoIntegerSend) {
     auto* serialPtr = serial.get();
     auto scanner = std::make_unique<StaticDeviceScanner>();
 
-    MakcuController controller(std::move(serial), std::move(scanner), MakcuConfig{});
+    MakcuMouseController controller(std::move(serial), std::move(scanner), MakcuConfig{});
     ASSERT_TRUE(controller.connect().has_value());
 
     ASSERT_TRUE(controller.move(0.4F, 0.4F).has_value());
@@ -330,7 +329,7 @@ TEST(MakcuControllerTest, ClampsMoveCommandAndCarriesOverflowAcrossSends) {
     auto* serialPtr = serial.get();
     auto scanner = std::make_unique<StaticDeviceScanner>();
 
-    MakcuController controller(std::move(serial), std::move(scanner), MakcuConfig{});
+    MakcuMouseController controller(std::move(serial), std::move(scanner), MakcuConfig{});
     ASSERT_TRUE(controller.connect().has_value());
     ASSERT_TRUE(controller.move(300.0F, 0.0F).has_value());
     ASSERT_TRUE(serialPtr->waitForMoveCount(3, std::chrono::milliseconds(200)));
@@ -360,7 +359,7 @@ TEST(MakcuControllerTest, DropsRemainderAfterTtlGap) {
     auto* serialPtr = serial.get();
     auto scanner = std::make_unique<StaticDeviceScanner>();
 
-    MakcuController controller(std::move(serial), std::move(scanner), MakcuConfig{});
+    MakcuMouseController controller(std::move(serial), std::move(scanner), MakcuConfig{});
     ASSERT_TRUE(controller.connect().has_value());
 
     ASSERT_TRUE(controller.move(0.2F, 0.0F).has_value());
@@ -375,7 +374,7 @@ TEST(MakcuControllerTest, KeepsRemainderWithinTtl) {
     auto* serialPtr = serial.get();
     auto scanner = std::make_unique<StaticDeviceScanner>();
 
-    MakcuController controller(std::move(serial), std::move(scanner), MakcuConfig{});
+    MakcuMouseController controller(std::move(serial), std::move(scanner), MakcuConfig{});
     ASSERT_TRUE(controller.connect().has_value());
 
     ASSERT_TRUE(controller.move(0.2F, 0.0F).has_value());

@@ -1,4 +1,4 @@
-#include "capture/inference_result_store.hpp"
+#include "inference/engine/inference_result_store.hpp"
 
 #include <optional>
 #include <utility>

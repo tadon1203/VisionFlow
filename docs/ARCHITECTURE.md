@@ -40,12 +40,13 @@ main
     -> CaptureRuntime (interface)
       -> WinrtCaptureRuntime (implementation)
         -> WinrtCaptureSource
+          -> WinrtCaptureSession
           -> IWinrtFrameSink (private src boundary)
             -> OnnxDmlCaptureProcessor
               -> OnnxDmlSession (DirectML + IO Binding)
     -> createMouseController()
       -> IMouseController (interface)
-        -> MakcuController (implementation)
+        -> MakcuMouseController (implementation, `MakcuController` is an alias)
           -> IDeviceScanner / ISerialPort (interfaces)
             -> WinRtDeviceScanner / WinRtSerialPort (platform adapters)
 ```
@@ -55,11 +56,17 @@ main
 - `src/core/`: application lifecycle and logging
 - `include/VisionFlow/capture/`: public capture contracts
 - `src/input/`: input domain orchestration and protocol behavior
-- `src/input/winrt_*`: WinRT-backed serial/device adapters (private boundary)
+- `src/input/platform/`: WinRT-backed serial/device adapters (private boundary)
+- `src/input/makcu/`: Makcu internal state/queue/ack components (private boundary)
 - `src/capture/common/`: capture-internal shared data types (`capture_frame_info`, `inference_result`)
-- `src/capture/backends/dml/`: DirectML/DX12 backend implementation details
-- `src/capture/winrt/`: WinRT capture source and sink boundary
-- `src/capture/`: capture orchestration and stores
+- `src/capture/`: capture domain shared/abstract components (`capture_error`)
+- `src/capture/pipeline/`: capture pipeline components (`frame_sequencer`)
+- `src/inference/api/`: inference composition entrypoints for runtime wiring
+- `src/inference/platform/dml/`: DirectML/DX12 backend implementation details
+- `src/inference/engine/`: inference orchestrator/backend implementations (`onnx_dml_inference_processor`, `debug_inference_processor`, `inference_result_store`)
+- `src/capture/sources/winrt/`: WinRT capture source and sink boundary
+- `src/capture/runtime/`: capture runtime composition
+- `src/platform/winrt/`: platform runtime lifecycle
 
 ## Core Components
 
@@ -85,19 +92,25 @@ main
   - `move(dx, dy)`
 - Uses `std::expected<void, std::error_code>` for error reporting
 
-### MakcuController
+### MakcuMouseController
 - Implements `IMouseController`
-- Owns controller state machine:
-  - `Idle`, `Opening`, `Ready`, `Stopping`, `Fault`
-- Coordinates serial handshake and move command dispatch
-- Owns one sender thread (`std::jthread`) and command synchronization (`mutex` + `condition_variable`)
+- Composes focused internal components:
+  - `MakcuStateMachine`
+  - `MakcuCommandQueue`
+  - `MakcuAckGate`
+- Coordinates serial handshake and sender worker lifecycle
 - On runtime send failure, closes serial, transitions back to `Idle`, and allows a fresh `connect()` attempt
+
+### WinrtCaptureSource + WinrtCaptureSession
+- `WinrtCaptureSource` owns high-level capture state transitions and frame delivery to `IWinrtFrameSink`
+- `WinrtCaptureSession` owns WinRT/D3D device setup, frame pool lifecycle, and capture session start/stop
+- `WinrtCaptureSource` delegates platform session management to `WinrtCaptureSession`
 
 ## Platform Boundary and Composition
 - `main` owns platform runtime scope and initializes platform context
 - `App` is the composition root for capture runtime and mouse controller
 - Controller composition still uses `createMouseController()`
-- `MakcuController` depends on abstractions (`ISerialPort`, `IDeviceScanner`)
+- `MakcuMouseController` depends on abstractions (`ISerialPort`, `IDeviceScanner`)
 - Platform concrete types stay in private `src/` headers and source files
 - Public headers remain platform-independent
 - Capture processor contract with platform texture types is private under `src/capture/`
@@ -124,6 +137,10 @@ main
 9. `DmlImageProcessor` delegates shared texture/fence bridging to `D3d11D3d12Interop`
 10. `DmlImageProcessor` delegates preprocess pipeline setup/recording to `ComputePipeline`
 11. `OnnxDmlSession` consumes that D3D12 buffer via ONNX Runtime DirectML (`DML1`) IO Binding
+12. `OnnxDmlSession` implementation is split by translation unit:
+  - `onnx_dml_session_common.cpp`
+  - `onnx_dml_session_win32_dml.cpp`
+  - `onnx_dml_session_stub.cpp`
 
 ### Move Path
 1. `move(dx, dy)` writes pending command under lock
@@ -145,7 +162,7 @@ main
 - `App` classifies connection errors into retryable vs non-retryable paths
 
 ## Concurrency Model
-- `MakcuController` is the sole owner of its worker thread
+- `MakcuMouseController` is the sole owner of its worker thread
 - `OnnxDmlCaptureProcessor` is the sole owner of its inference thread
 - Shared mutable state is protected by explicit mutexes
 - Shutdown sequence is explicit and deterministic
@@ -156,11 +173,16 @@ main
 - `include/VisionFlow/input/*`: public input contracts and composition entrypoints
 - `src/core/*`: app lifecycle and logging implementations
 - `src/input/*`: input orchestration and protocol implementations
-- `src/input/winrt_*`: private WinRT serial/device adapters
+- `src/input/platform/*`: private WinRT serial/device adapters
+- `src/input/makcu/*`: private Makcu orchestration helpers
 - `src/capture/common/*`: private capture shared data contracts
-- `src/capture/backends/dml/*`: private DML backend components
-- `src/capture/winrt/*`: private WinRT capture components
-- `src/capture/*`: private capture orchestration and stores
+- `src/capture/*`: private capture shared/abstract components
+- `src/capture/pipeline/*`: private capture pipeline components
+- `src/inference/platform/dml/*`: private DML backend components
+- `src/inference/engine/*`: private debug backend components
+- `src/capture/sources/winrt/*`: private WinRT capture components
+- `src/capture/runtime/*`: private runtime composition
+- `src/platform/winrt/*`: private platform runtime context
 - `config/*`: runtime configuration inputs
 
 ## Extension Guidelines (Core)

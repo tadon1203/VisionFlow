@@ -1,0 +1,261 @@
+#include "inference/platform/dml/dml_image_processor.hpp"
+
+#include <array>
+#include <cstdint>
+#include <expected>
+#include <mutex>
+#include <system_error>
+
+#include "VisionFlow/capture/capture_error.hpp"
+#include "VisionFlow/core/logger.hpp"
+#include "inference/platform/dml/compute_pipeline.hpp"
+#include "inference/platform/dml/d3d11_d3d12_interop.hpp"
+#include "inference/platform/dml/dx_utils.hpp"
+#include "inference/platform/dml/onnx_dml_session.hpp"
+
+#ifdef _WIN32
+#include <Windows.h>
+#include <d3d11.h>
+#include <d3d12.h>
+#include <winrt/base.h>
+#endif
+
+namespace vf {
+
+#ifdef _WIN32
+namespace {
+
+std::expected<void, std::error_code> toError(std::expected<void, dx_utils::DxCallError> result,
+                                             CaptureError errorCode) {
+    if (result) {
+        return {};
+    }
+
+    const dx_utils::DxCallError err = result.error();
+    if (err.isWin32) {
+        VF_ERROR("{} failed (Win32Error=0x{:08X})", err.apiName,
+                 static_cast<std::uint32_t>(HRESULT_CODE(err.hr)));
+    } else {
+        VF_ERROR("{} failed (HRESULT=0x{:08X})", err.apiName, static_cast<std::uint32_t>(err.hr));
+    }
+    return std::unexpected(makeErrorCode(errorCode));
+}
+
+} // namespace
+
+class DmlImageProcessor::Impl {
+  public:
+    explicit Impl(OnnxDmlSession& session) : session(session) {}
+
+    std::expected<InitializeResult, std::error_code> initialize(ID3D11Texture2D* sourceTexture) {
+        if (sourceTexture == nullptr) {
+            return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+        }
+
+        std::scoped_lock lock(mutex);
+
+        const auto interopResult = interop.initializeOrUpdate(sourceTexture);
+        if (!interopResult) {
+            return std::unexpected(interopResult.error());
+        }
+        const D3d11D3d12Interop::UpdateResult& interopState = interopResult.value();
+
+        const auto setupResult = prepareInferencePath(interopState);
+        if (!setupResult) {
+            return std::unexpected(setupResult.error());
+        }
+
+        initialized = true;
+        return InitializeResult{
+            .dmlDevice = interopState.dmlDevice,
+            .commandQueue = interopState.commandQueue,
+        };
+    }
+
+    std::expected<DispatchResult, std::error_code> dispatch(ID3D11Texture2D* frameTexture,
+                                                            std::uint64_t fenceValue) {
+        if (frameTexture == nullptr) {
+            return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
+        }
+
+        std::scoped_lock lock(mutex);
+        if (!initialized) {
+            return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+        }
+
+        const auto interopInitResult = interop.initializeOrUpdate(frameTexture);
+        if (!interopInitResult) {
+            return std::unexpected(interopInitResult.error());
+        }
+        const D3d11D3d12Interop::UpdateResult& interopState = interopInitResult.value();
+
+        const auto setupResult = prepareInferencePath(interopState);
+        if (!setupResult) {
+            return std::unexpected(setupResult.error());
+        }
+
+        const auto copyResult = interop.copyAndSignal(frameTexture, fenceValue);
+        if (!copyResult) {
+            return std::unexpected(copyResult.error());
+        }
+
+        const auto waitResult = interop.waitOnQueue(copyResult.value());
+        if (!waitResult) {
+            return std::unexpected(waitResult.error());
+        }
+
+        const auto prepareResult = computePipeline.prepareForRecord();
+        if (!prepareResult) {
+            return std::unexpected(prepareResult.error());
+        }
+
+        const auto recordResult =
+            computePipeline.recordDispatch(interopState.sourceWidth, interopState.sourceHeight);
+        if (!recordResult) {
+            return std::unexpected(recordResult.error());
+        }
+
+        const auto closeResult = computePipeline.closeAfterRecord();
+        if (!closeResult) {
+            return std::unexpected(closeResult.error());
+        }
+
+        ID3D12CommandQueue* queue = interop.getD3d12Queue();
+        ID3D12CommandList* commandList = computePipeline.commandListForExecute();
+        ID3D12Fence* completionFence = computePipeline.getCompletionFence();
+        HANDLE completionEvent = computePipeline.getCompletionEvent();
+
+        if (queue == nullptr || commandList == nullptr || completionFence == nullptr ||
+            completionEvent == nullptr) {
+            return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+        }
+
+        std::array<ID3D12CommandList*, 1> commandLists = {commandList};
+        queue->ExecuteCommandLists(static_cast<UINT>(commandLists.size()), commandLists.data());
+
+        const std::uint64_t completionFenceValue = computePipeline.nextFenceValue();
+        const auto signalResult =
+            toError(dx_utils::checkD3d(queue->Signal(completionFence, completionFenceValue),
+                                       "ID3D12CommandQueue::Signal(preprocess)"),
+                    CaptureError::InferenceRunFailed);
+        if (!signalResult) {
+            return std::unexpected(signalResult.error());
+        }
+
+        if (completionFence->GetCompletedValue() < completionFenceValue) {
+            const auto setEventResult =
+                toError(dx_utils::checkD3d(completionFence->SetEventOnCompletion(
+                                               completionFenceValue, completionEvent),
+                                           "ID3D12Fence::SetEventOnCompletion(preprocess)"),
+                        CaptureError::InferenceRunFailed);
+            if (!setEventResult) {
+                return std::unexpected(setEventResult.error());
+            }
+
+            const DWORD waitCode = WaitForSingleObject(completionEvent, INFINITE);
+            const auto waitEventResult =
+                toError(dx_utils::checkWin32(waitCode == WAIT_OBJECT_0,
+                                             "WaitForSingleObject(preprocessFenceEvent)"),
+                        CaptureError::InferenceRunFailed);
+            if (!waitEventResult) {
+                return std::unexpected(waitEventResult.error());
+            }
+        }
+
+        return DispatchResult{
+            .outputResource = computePipeline.getOutputResource(),
+            .outputBytes = computePipeline.getOutputBytes(),
+        };
+    }
+
+    void shutdown() {
+        std::scoped_lock lock(mutex);
+        computePipeline.reset();
+        interop.reset();
+        initialized = false;
+    }
+
+  private:
+    std::expected<void, std::error_code>
+    prepareInferencePath(const D3d11D3d12Interop::UpdateResult& interopState) {
+        const auto sessionStartResult = session.start(
+            interopState.dmlDevice, interopState.commandQueue, interopState.generationId);
+        if (!sessionStartResult) {
+            return std::unexpected(sessionStartResult.error());
+        }
+
+        const OnnxDmlSession::ModelMetadata& metadata = session.metadata();
+        ComputePipeline::InitConfig initConfig{};
+        initConfig.dstWidth = metadata.inputWidth;
+        initConfig.dstHeight = metadata.inputHeight;
+        initConfig.outputBytes = metadata.inputTensorBytes;
+        initConfig.outputElementCount = metadata.inputElementCount;
+
+        const auto pipelineInitResult = computePipeline.initialize(interopState.device, initConfig);
+        if (!pipelineInitResult) {
+            return std::unexpected(pipelineInitResult.error());
+        }
+
+        const auto pipelineUpdateResult = computePipeline.updateResources(
+            interopState.sharedInputTexture, static_cast<DXGI_FORMAT>(interopState.sourceFormat));
+        if (!pipelineUpdateResult) {
+            return std::unexpected(pipelineUpdateResult.error());
+        }
+
+        return {};
+    }
+
+    OnnxDmlSession& session;
+    std::mutex mutex;
+    bool initialized = false;
+    D3d11D3d12Interop interop;
+    ComputePipeline computePipeline;
+};
+
+DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session)
+    : impl(std::make_unique<Impl>(session)) {}
+
+DmlImageProcessor::~DmlImageProcessor() { impl->shutdown(); }
+
+std::expected<DmlImageProcessor::InitializeResult, std::error_code>
+DmlImageProcessor::initialize(ID3D11Texture2D* sourceTexture) {
+    return impl->initialize(sourceTexture);
+}
+
+std::expected<DmlImageProcessor::DispatchResult, std::error_code>
+DmlImageProcessor::dispatch(ID3D11Texture2D* frameTexture, std::uint64_t fenceValue) {
+    return impl->dispatch(frameTexture, fenceValue);
+}
+
+void DmlImageProcessor::shutdown() { impl->shutdown(); }
+
+#else
+
+class DmlImageProcessor::Impl {
+  public:
+    explicit Impl(OnnxDmlSession& session) { static_cast<void>(session); }
+};
+
+DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session)
+    : impl(std::make_unique<Impl>(session)) {}
+
+DmlImageProcessor::~DmlImageProcessor() = default;
+
+std::expected<DmlImageProcessor::InitializeResult, std::error_code>
+DmlImageProcessor::initialize(void* sourceTexture) {
+    static_cast<void>(sourceTexture);
+    return std::unexpected(makeErrorCode(CaptureError::PlatformNotSupported));
+}
+
+std::expected<DmlImageProcessor::DispatchResult, std::error_code>
+DmlImageProcessor::dispatch(void* frameTexture, std::uint64_t fenceValue) {
+    static_cast<void>(frameTexture);
+    static_cast<void>(fenceValue);
+    return std::unexpected(makeErrorCode(CaptureError::PlatformNotSupported));
+}
+
+void DmlImageProcessor::shutdown() {}
+
+#endif
+
+} // namespace vf
