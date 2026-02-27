@@ -48,6 +48,8 @@ class DmlImageProcessorPreprocess {
     [[nodiscard]] ID3D12Fence* getCompletionFence() const;
     [[nodiscard]] HANDLE getCompletionEvent() const;
     [[nodiscard]] std::uint64_t nextFenceValue();
+    [[nodiscard]] std::expected<std::uint64_t, std::error_code>
+    readLastGpuDurationUs(std::uint64_t timestampFrequency);
 
     [[nodiscard]] ID3D12Resource* getOutputResource() const;
 #else

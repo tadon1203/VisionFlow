@@ -22,11 +22,17 @@ struct InferenceConfig {
     std::string modelPath{"model.onnx"};
 };
 
+struct ProfilerConfig {
+    bool enabled{false};
+    std::chrono::milliseconds reportIntervalMs{1000};
+};
+
 struct VisionFlowConfig {
     AppConfig app;
     MakcuConfig makcu;
     CaptureConfig capture;
     InferenceConfig inference;
+    ProfilerConfig profiler;
 };
 
 } // namespace vf

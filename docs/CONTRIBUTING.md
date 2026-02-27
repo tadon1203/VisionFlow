@@ -104,3 +104,11 @@ All prefixes follow the same workflow rule: direct `main` commit is forbidden, a
 ### Packaging Rules
 - ZIP compression MUST be `deflate` with compression level `9`.
 - Archive root MUST contain `include/...` and `lib/win-x64/...` directly (no `third_party/...` prefix).
+
+## Smart Pointer Policy
+- `std::shared_ptr` is prohibited in this repository for production code.
+- Exception: logger implementation (`VisionFlow/core/logger.*`) may use `std::shared_ptr` because of spdlog ownership APIs.
+- Preferred ownership model:
+  - Ownership: `std::unique_ptr`
+  - Non-owning references: raw pointers (`T*`) or references (`T&`)
+- Do not introduce new shared ownership unless the logger exception explicitly applies.

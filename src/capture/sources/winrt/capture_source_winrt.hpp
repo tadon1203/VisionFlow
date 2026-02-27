@@ -8,6 +8,7 @@
 #include <system_error>
 
 #include "VisionFlow/core/config.hpp"
+#include "VisionFlow/core/i_profiler.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
 
 #ifdef _WIN32
@@ -23,7 +24,7 @@ class WinrtCaptureSession;
 
 class WinrtCaptureSource {
   public:
-    WinrtCaptureSource();
+    explicit WinrtCaptureSource(IProfiler* profiler = nullptr);
     WinrtCaptureSource(const WinrtCaptureSource&) = delete;
     WinrtCaptureSource(WinrtCaptureSource&&) = delete;
     WinrtCaptureSource& operator=(const WinrtCaptureSource&) = delete;
@@ -64,6 +65,7 @@ class WinrtCaptureSource {
     CaptureState state = CaptureState::Idle;
     IWinrtFrameSink* frameSink = nullptr;
     std::error_code lastError;
+    IProfiler* profiler = nullptr;
 
 #ifdef _WIN32
     std::unique_ptr<WinrtCaptureSession> session;

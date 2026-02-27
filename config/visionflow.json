@@ -10,5 +10,9 @@
   },
   "inference": {
     "modelPath": "model.onnx"
+  },
+  "profiler": {
+    "enabled": false,
+    "reportIntervalMs": 1000
   }
 }

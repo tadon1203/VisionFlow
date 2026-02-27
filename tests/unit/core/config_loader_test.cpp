@@ -33,7 +33,8 @@ TEST(ConfigLoaderTest, LoadsValidConfig) {
   "app": { "reconnectRetryMs": 500 },
   "makcu": { "remainderTtlMs": 200 },
   "capture": { "preferredDisplayIndex": 1 },
-  "inference": { "modelPath": "detector.onnx" }
+  "inference": { "modelPath": "detector.onnx" },
+  "profiler": { "enabled": true, "reportIntervalMs": 250 }
 })");
 
     const auto result = loadConfig(path);
@@ -42,6 +43,8 @@ TEST(ConfigLoaderTest, LoadsValidConfig) {
     EXPECT_EQ(result->makcu.remainderTtlMs, std::chrono::milliseconds(200));
     EXPECT_EQ(result->capture.preferredDisplayIndex, 1U);
     EXPECT_EQ(result->inference.modelPath, "detector.onnx");
+    EXPECT_TRUE(result->profiler.enabled);
+    EXPECT_EQ(result->profiler.reportIntervalMs, std::chrono::milliseconds(250));
 
     static_cast<void>(std::filesystem::remove(path));
 }
@@ -56,6 +59,8 @@ TEST(ConfigLoaderTest, CreatesDefaultConfigForMissingFile) {
     EXPECT_EQ(result->makcu.remainderTtlMs, std::chrono::milliseconds(200));
     EXPECT_EQ(result->capture.preferredDisplayIndex, 0U);
     EXPECT_EQ(result->inference.modelPath, "model.onnx");
+    EXPECT_FALSE(result->profiler.enabled);
+    EXPECT_EQ(result->profiler.reportIntervalMs, std::chrono::milliseconds(1000));
     EXPECT_TRUE(std::filesystem::exists(path));
 
     static_cast<void>(std::filesystem::remove(path));
@@ -218,6 +223,54 @@ TEST(ConfigLoaderTest, ReturnsOutOfRangeForTooLargePreferredDisplayIndex) {
   "app": { "reconnectRetryMs": 500 },
   "makcu": { "remainderTtlMs": 200 },
   "capture": { "preferredDisplayIndex": 4294967296 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::OutOfRange));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, UsesDefaultProfilerConfigWhenProfilerSectionMissing) {
+    const auto path = makeTempPath("visionflow_config_without_profiler.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_FALSE(result->profiler.enabled);
+    EXPECT_EQ(result->profiler.reportIntervalMs, std::chrono::milliseconds(1000));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsInvalidTypeForProfilerEnabled) {
+    const auto path = makeTempPath("visionflow_config_profiler_enabled_invalid_type.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "profiler": { "enabled": 1, "reportIntervalMs": 1000 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::InvalidType));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsOutOfRangeForProfilerReportIntervalMs) {
+    const auto path = makeTempPath("visionflow_config_profiler_interval_out_of_range.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "profiler": { "enabled": true, "reportIntervalMs": 0 }
 })");
 
     const auto result = loadConfig(path);

@@ -11,6 +11,7 @@
 #include <thread>
 
 #include "VisionFlow/core/config.hpp"
+#include "VisionFlow/core/i_profiler.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
 #include "VisionFlow/inference/inference_result_store.hpp"
 #include "capture/pipeline/frame_sequencer.hpp"
@@ -30,7 +31,8 @@ class OnnxDmlInferenceProcessor final : public IInferenceProcessor, public IWinr
                               InferenceResultStore* resultStore,
                               std::unique_ptr<OnnxDmlSession> session,
                               std::unique_ptr<DmlImageProcessor> dmlImageProcessor,
-                              std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker);
+                              std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker,
+                              IProfiler* profiler = nullptr);
     OnnxDmlInferenceProcessor(const OnnxDmlInferenceProcessor&) = delete;
     OnnxDmlInferenceProcessor(OnnxDmlInferenceProcessor&&) = delete;
     OnnxDmlInferenceProcessor& operator=(const OnnxDmlInferenceProcessor&) = delete;
@@ -67,6 +69,7 @@ class OnnxDmlInferenceProcessor final : public IInferenceProcessor, public IWinr
     std::unique_ptr<OnnxDmlSession> session;
     std::unique_ptr<DmlImageProcessor> dmlImageProcessor;
     std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker;
+    IProfiler* profiler = nullptr;
     std::jthread workerThread;
 };
 

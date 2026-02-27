@@ -23,7 +23,7 @@ namespace vf {
 #ifdef _WIN32
 class DmlImageProcessor::Impl {
   public:
-    explicit Impl(OnnxDmlSession& session) : session(session) {}
+    Impl(OnnxDmlSession& session, IProfiler* profiler) : session(session), profiler(profiler) {}
 
     std::expected<InitializeResult, std::error_code> initialize(ID3D11Texture2D* sourceTexture) {
         if (sourceTexture == nullptr) {
@@ -136,6 +136,24 @@ class DmlImageProcessor::Impl {
             }
         }
 
+        if (profiler != nullptr) {
+            UINT64 timestampFrequency = 0;
+            const HRESULT frequencyResult = queue->GetTimestampFrequency(&timestampFrequency);
+            const auto frequencyCheck =
+                dx_utils::checkD3d(frequencyResult, "ID3D12CommandQueue::GetTimestampFrequency");
+            if (!frequencyCheck || timestampFrequency == 0) {
+                VF_WARN("Failed to get D3D12 timestamp frequency for profiling");
+            } else {
+                const auto gpuDurationUs = preprocess.readLastGpuDurationUs(timestampFrequency);
+                if (!gpuDurationUs) {
+                    VF_WARN("Failed to read preprocess GPU timestamp: {}",
+                            gpuDurationUs.error().message());
+                } else {
+                    profiler->recordGpuUs(ProfileStage::GpuPreprocess, gpuDurationUs.value());
+                }
+            }
+        }
+
         return DispatchResult{
             .outputResource = preprocess.getOutputResource(),
             .outputBytes = preprocess.getOutputBytes(),
@@ -179,14 +197,15 @@ class DmlImageProcessor::Impl {
     }
 
     OnnxDmlSession& session;
+    IProfiler* profiler = nullptr;
     std::mutex mutex;
     bool initialized = false;
     DmlImageProcessorInterop interop;
     DmlImageProcessorPreprocess preprocess;
 };
 
-DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session)
-    : impl(std::make_unique<Impl>(session)) {}
+DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session, IProfiler* profiler)
+    : impl(std::make_unique<Impl>(session, profiler)) {}
 
 DmlImageProcessor::~DmlImageProcessor() { impl->shutdown(); }
 
@@ -206,11 +225,14 @@ void DmlImageProcessor::shutdown() { impl->shutdown(); }
 
 class DmlImageProcessor::Impl {
   public:
-    explicit Impl(OnnxDmlSession& session) { static_cast<void>(session); }
+    Impl(OnnxDmlSession& session, IProfiler* profiler) {
+        static_cast<void>(session);
+        static_cast<void>(profiler);
+    }
 };
 
-DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session)
-    : impl(std::make_unique<Impl>(session)) {}
+DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session, IProfiler* profiler)
+    : impl(std::make_unique<Impl>(session, profiler)) {}
 
 DmlImageProcessor::~DmlImageProcessor() = default;
 

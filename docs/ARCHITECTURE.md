@@ -74,6 +74,7 @@ main
 ## Core Layers
 - `include/`: public contracts and interface boundaries
 - `src/core/`: application lifecycle and logging
+- `src/core/profiler.*`: runtime CPU/GPU stage profiler implementation
 - `include/VisionFlow/capture/`: public capture contracts
 - `src/input/`: input domain orchestration and protocol behavior
 - `src/input/platform/`: WinRT-backed serial/device adapters (private boundary)
@@ -107,6 +108,12 @@ main
 ### Logger
 - Provides one shared core logger
 - Exposes level macros (`VF_INFO`, `VF_WARN`, etc.) for consistent runtime logging
+
+### Profiler
+- Public profiler contract is `IProfiler` (under `include/VisionFlow/core/`)
+- Concrete implementation is private (`src/core/profiler.*`)
+- Disabled by default via config (`profiler.enabled=false`)
+- Enabled mode emits periodic stage aggregates to logger
 
 ### IMouseController
 - Public behavioral contract:
@@ -174,6 +181,7 @@ main
 1. Inference worker publishes result to `InferenceResultStore`
 2. `App::tickOnce()` consumes one result via `InferenceResultStore::take()`
 3. App applies the result to runtime actions (mouse/output behavior)
+4. Profiler emits periodic aggregates for capture/inference/tick stages when enabled
 
 ### Move Path
 1. `move(dx, dy)` writes pending command under lock

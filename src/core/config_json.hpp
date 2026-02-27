@@ -114,12 +114,28 @@ inline void from_json(const nlohmann::json& json, InferenceConfig& config) {
     }
 }
 
+inline void to_json(nlohmann::json& json, const ProfilerConfig& config) {
+    json = {
+        {"enabled", config.enabled},
+        {"reportIntervalMs", config.reportIntervalMs.count()},
+    };
+}
+
+inline void from_json(const nlohmann::json& json, ProfilerConfig& config) {
+    const nlohmann::json& enabledValue = json.at("enabled");
+    if (!enabledValue.is_boolean()) {
+        throw nlohmann::json::type_error::create(
+            detail::kJsonTypeErrorId, "expected boolean for key 'enabled'", &enabledValue);
+    }
+    config.enabled = enabledValue.get<bool>();
+    config.reportIntervalMs = detail::readPositiveMilliseconds(json, "reportIntervalMs");
+}
+
 inline void to_json(nlohmann::json& json, const VisionFlowConfig& config) {
     json = {
-        {"app", config.app},
-        {"makcu", config.makcu},
-        {"capture", config.capture},
-        {"inference", config.inference},
+        {"app", config.app},           {"makcu", config.makcu},
+        {"capture", config.capture},   {"inference", config.inference},
+        {"profiler", config.profiler},
     };
 }
 
@@ -131,6 +147,9 @@ inline void from_json(const nlohmann::json& json, VisionFlowConfig& config) {
     }
     if (json.contains("inference")) {
         config.inference = json.at("inference").get<InferenceConfig>();
+    }
+    if (json.contains("profiler")) {
+        config.profiler = json.at("profiler").get<ProfilerConfig>();
     }
 }
 // NOLINTEND(readability-identifier-naming)

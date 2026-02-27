@@ -1,6 +1,7 @@
 #include "VisionFlow/core/app.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <expected>
 #include <memory>
 #include <optional>
@@ -24,15 +25,29 @@ logErrorAndPropagate(std::string_view context, const std::error_code& error) {
     return std::unexpected(error);
 }
 
+[[nodiscard]] std::uint64_t elapsedUs(std::chrono::steady_clock::time_point startedAt,
+                                      std::chrono::steady_clock::time_point endedAt) {
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(endedAt - startedAt).count());
+}
+
 } // namespace
 
 App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
          CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
          std::unique_ptr<IInferenceProcessor> inferenceProcessor,
          std::unique_ptr<InferenceResultStore> resultStore)
+    : App(std::move(mouseController), appConfig, captureConfig, std::move(captureRuntime),
+          std::move(inferenceProcessor), std::move(resultStore), nullptr) {}
+
+App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
+         CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
+         std::unique_ptr<IInferenceProcessor> inferenceProcessor,
+         std::unique_ptr<InferenceResultStore> resultStore, std::unique_ptr<IProfiler> profiler)
     : appConfig(appConfig), captureConfig(captureConfig),
       mouseController(std::move(mouseController)), captureRuntime(std::move(captureRuntime)),
-      inferenceProcessor(std::move(inferenceProcessor)), resultStore(std::move(resultStore)) {}
+      inferenceProcessor(std::move(inferenceProcessor)), resultStore(std::move(resultStore)),
+      profiler(std::move(profiler)) {}
 
 App::~App() = default;
 
@@ -116,22 +131,43 @@ void App::shutdown() {
         VF_ERROR("App shutdown warning: mouse disconnect failed ({})",
                  disconnectResult.error().message());
     }
+
+    if (profiler != nullptr) {
+        profiler->flushReport(std::chrono::steady_clock::now());
+    }
 }
 
 std::expected<void, std::error_code> App::tickOnce() {
+    const auto tickStartedAt = std::chrono::steady_clock::now();
+
+    const auto capturePollStartedAt = std::chrono::steady_clock::now();
     const std::expected<void, std::error_code> capturePollResult = captureRuntime->poll();
+    if (profiler != nullptr) {
+        profiler->recordCpuUs(ProfileStage::CapturePoll,
+                              elapsedUs(capturePollStartedAt, std::chrono::steady_clock::now()));
+    }
     if (!capturePollResult) {
         return logErrorAndPropagate("App loop failed: capture poll error",
                                     capturePollResult.error());
     }
 
+    const auto inferencePollStartedAt = std::chrono::steady_clock::now();
     const std::expected<void, std::error_code> inferencePollResult = inferenceProcessor->poll();
+    if (profiler != nullptr) {
+        profiler->recordCpuUs(ProfileStage::InferencePoll,
+                              elapsedUs(inferencePollStartedAt, std::chrono::steady_clock::now()));
+    }
     if (!inferencePollResult) {
         return logErrorAndPropagate("App loop failed: inference poll error",
                                     inferencePollResult.error());
     }
 
+    const auto connectStartedAt = std::chrono::steady_clock::now();
     const std::expected<void, std::error_code> connectResult = mouseController->connect();
+    if (profiler != nullptr) {
+        profiler->recordCpuUs(ProfileStage::ConnectAttempt,
+                              elapsedUs(connectStartedAt, std::chrono::steady_clock::now()));
+    }
     if (!connectResult) {
         VF_WARN("App reconnect attempt failed: {}", connectResult.error().message());
         if (!mouseController->shouldRetryConnect(connectResult.error())) {
@@ -149,10 +185,23 @@ std::expected<void, std::error_code> App::tickOnce() {
 
     const std::optional<InferenceResult> latestResult = resultStore->take();
     if (!latestResult.has_value()) {
+        if (profiler != nullptr) {
+            const auto tickEndedAt = std::chrono::steady_clock::now();
+            profiler->recordCpuUs(ProfileStage::AppTick, elapsedUs(tickStartedAt, tickEndedAt));
+            profiler->maybeReport(tickEndedAt);
+        }
         return {};
     }
 
-    return applyInferenceToMouse(*latestResult);
+    const auto applyStartedAt = std::chrono::steady_clock::now();
+    const std::expected<void, std::error_code> applyResult = applyInferenceToMouse(*latestResult);
+    const auto tickEndedAt = std::chrono::steady_clock::now();
+    if (profiler != nullptr) {
+        profiler->recordCpuUs(ProfileStage::ApplyInference, elapsedUs(applyStartedAt, tickEndedAt));
+        profiler->recordCpuUs(ProfileStage::AppTick, elapsedUs(tickStartedAt, tickEndedAt));
+        profiler->maybeReport(tickEndedAt);
+    }
+    return applyResult;
 }
 
 std::expected<void, std::error_code> App::applyInferenceToMouse(const InferenceResult& result) {

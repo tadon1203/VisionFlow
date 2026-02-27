@@ -6,6 +6,7 @@
 
 #include "VisionFlow/capture/i_capture_runtime.hpp"
 #include "VisionFlow/core/config.hpp"
+#include "VisionFlow/core/i_profiler.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
 #include "VisionFlow/inference/inference_result_store.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
@@ -19,6 +20,10 @@ class App {
         CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
         std::unique_ptr<IInferenceProcessor> inferenceProcessor,
         std::unique_ptr<InferenceResultStore> resultStore);
+    App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
+        CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
+        std::unique_ptr<IInferenceProcessor> inferenceProcessor,
+        std::unique_ptr<InferenceResultStore> resultStore, std::unique_ptr<IProfiler> profiler);
     ~App();
 
     [[nodiscard]] std::expected<void, std::error_code> run();
@@ -31,6 +36,7 @@ class App {
     std::unique_ptr<ICaptureRuntime> captureRuntime;
     std::unique_ptr<IInferenceProcessor> inferenceProcessor;
     std::unique_ptr<InferenceResultStore> resultStore;
+    std::unique_ptr<IProfiler> profiler;
 
     [[nodiscard]] std::expected<void, std::error_code> setup();
     [[nodiscard]] std::expected<void, std::error_code> tickLoop();
