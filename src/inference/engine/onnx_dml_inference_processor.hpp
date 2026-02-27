@@ -13,6 +13,7 @@
 #include "VisionFlow/core/config.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
 #include "capture/pipeline/frame_sequencer.hpp"
+#include "capture/sources/winrt/winrt_capture_frame.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
 #include "inference/engine/dml_inference_worker.hpp"
 #include "inference/engine/inference_result_store.hpp"
@@ -53,7 +54,7 @@ class OnnxDmlCaptureProcessor final : public IInferenceProcessor, public IWinrtF
     ProcessorState state = ProcessorState::Idle;
 
     std::jthread workerThread;
-    FrameSequencer frameSequencer;
+    FrameSequencer<WinrtCaptureFrame> frameSequencer;
     std::atomic<std::uint64_t> frameSequence{0};
 
     std::unique_ptr<OnnxDmlSession> session;

@@ -135,7 +135,11 @@ void OnnxDmlCaptureProcessor::onFrame(ID3D11Texture2D* texture, const CaptureFra
     }
 
     const std::uint64_t fenceValue = frameSequence.fetch_add(1, std::memory_order_relaxed) + 1;
-    frameSequencer.submit(texture, info, fenceValue);
+    WinrtCaptureFrame frame;
+    frame.texture.copy_from(texture);
+    frame.info = info;
+    frame.fenceValue = fenceValue;
+    frameSequencer.submit(std::move(frame));
 }
 
 void OnnxDmlCaptureProcessor::inferenceLoop(const std::stop_token& stopToken) {

@@ -60,7 +60,7 @@ main
 - `src/input/makcu/`: Makcu internal state/queue/ack components (private boundary)
 - `src/capture/common/`: capture-internal shared data types (`capture_frame_info`, `inference_result`)
 - `src/capture/`: capture domain shared/abstract components (`capture_error`)
-- `src/capture/pipeline/`: capture pipeline components (`frame_sequencer`)
+- `src/capture/pipeline/`: platform-agnostic capture pipeline components (`frame_sequencer`)
 - `src/inference/api/`: inference composition entrypoints for runtime wiring
 - `src/inference/platform/dml/`: DirectML/DX12 backend implementation details
 - `src/inference/engine/`: inference orchestrator/backend implementations (`onnx_dml_inference_processor`, `debug_inference_processor`, `inference_result_store`)
@@ -181,6 +181,7 @@ main
 - `src/inference/platform/dml/*`: private DML backend components
 - `src/inference/engine/*`: private debug backend components
 - `src/capture/sources/winrt/*`: private WinRT capture components
+  - includes WinRT-native captured frame representation passed to inference (`winrt_capture_frame`)
 - `src/capture/runtime/*`: private runtime composition
 - `src/platform/winrt/*`: private platform runtime context
 - `config/*`: runtime configuration inputs

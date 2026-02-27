@@ -6,6 +6,7 @@
 #include <system_error>
 
 #include "capture/pipeline/frame_sequencer.hpp"
+#include "capture/sources/winrt/winrt_capture_frame.hpp"
 #include "inference/engine/inference_result_store.hpp"
 #include "inference/platform/dml/dml_image_processor.hpp"
 
@@ -17,14 +18,14 @@ class DmlInferenceWorker {
   public:
     using FaultHandler = std::function<void(std::string_view reason, std::error_code errorCode)>;
 
-    DmlInferenceWorker(FrameSequencer& frameSequencer, OnnxDmlSession& session,
+    DmlInferenceWorker(FrameSequencer<WinrtCaptureFrame>& frameSequencer, OnnxDmlSession& session,
                        DmlImageProcessor& dmlImageProcessor, InferenceResultStore& resultStore,
                        FaultHandler faultHandler);
 
     void run(const std::stop_token& stopToken);
 
   private:
-    FrameSequencer& frameSequencer;
+    FrameSequencer<WinrtCaptureFrame>& frameSequencer;
     OnnxDmlSession& session;
     DmlImageProcessor& dmlImageProcessor;
     InferenceResultStore& resultStore;

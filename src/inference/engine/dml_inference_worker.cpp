@@ -11,7 +11,8 @@
 
 namespace vf {
 
-DmlInferenceWorker::DmlInferenceWorker(FrameSequencer& frameSequencer, OnnxDmlSession& session,
+DmlInferenceWorker::DmlInferenceWorker(FrameSequencer<WinrtCaptureFrame>& frameSequencer,
+                                       OnnxDmlSession& session,
                                        DmlImageProcessor& dmlImageProcessor,
                                        InferenceResultStore& resultStore, FaultHandler faultHandler)
     : frameSequencer(frameSequencer), session(session), dmlImageProcessor(dmlImageProcessor),
@@ -20,7 +21,7 @@ DmlInferenceWorker::DmlInferenceWorker(FrameSequencer& frameSequencer, OnnxDmlSe
 void DmlInferenceWorker::run(const std::stop_token& stopToken) {
 #if defined(_WIN32) && defined(VF_HAS_ONNXRUNTIME_DML) && VF_HAS_ONNXRUNTIME_DML
     while (!stopToken.stop_requested()) {
-        FrameSequencer::PendingFrame frame;
+        WinrtCaptureFrame frame;
         if (!frameSequencer.waitAndTakeLatest(stopToken, frame)) {
             continue;
         }
