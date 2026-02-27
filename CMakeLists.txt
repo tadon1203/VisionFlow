@@ -120,11 +120,8 @@ add_library(vf_inference STATIC
     src/inference/engine/debug_inference_processor.cpp
     src/inference/engine/inference_result_store.cpp
     src/inference/engine/onnx_dml_inference_processor.cpp
-    src/inference/platform/dml/compute_pipeline.cpp
-    src/inference/platform/dml/d3d11_d3d12_interop.cpp
     src/inference/platform/dml/dml_image_processor.cpp
-    src/inference/platform/dml/onnx_dml_session_common.cpp
-    src/inference/platform/dml/onnx_dml_session_win32_dml.cpp
+    src/inference/platform/dml/onnx_dml_session.cpp
     src/inference/platform/dml/onnx_dml_session_stub.cpp
 )
 vf_apply_target_defaults(vf_inference)

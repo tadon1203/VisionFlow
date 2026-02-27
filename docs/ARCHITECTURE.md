@@ -113,7 +113,8 @@ main
 - `WinrtCaptureSession` owns WinRT/D3D device setup, frame pool lifecycle, and capture session start/stop
 - `WinrtCaptureSource` delegates platform session management to `WinrtCaptureSession`
 - `WinrtCaptureRuntime` is capture-only and does not own inference lifecycle
-- `AppFactory` wires `WinrtCaptureRuntime` to `IWinrtFrameSink*` exported by the inference processor
+- `AppFactory` attaches `IInferenceProcessor` to `WinrtCaptureRuntime`; runtime resolves private
+  `IWinrtFrameSink` internally
 
 ## Platform Boundary and Composition
 - `main` owns platform runtime scope and initializes platform context
@@ -144,12 +145,11 @@ main
 6. Push each texture frame to capture processor
 7. Keep only the freshest frame in the processor and drop stale frames
 8. `OnnxDmlCaptureProcessor` forwards only the latest frame to `DmlImageProcessor`
-9. `DmlImageProcessor` delegates shared texture/fence bridging to `D3d11D3d12Interop`
-10. `DmlImageProcessor` delegates preprocess pipeline setup/recording to `ComputePipeline`
+9. `DmlImageProcessor` owns shared texture/fence bridging (D3D11/D3D12 interop)
+10. `DmlImageProcessor` owns preprocess pipeline setup/recording
 11. `OnnxDmlSession` consumes that D3D12 buffer via ONNX Runtime DirectML (`DML1`) IO Binding
 12. `OnnxDmlSession` implementation is split by translation unit:
-  - `onnx_dml_session_common.cpp`
-  - `onnx_dml_session_win32_dml.cpp`
+  - `onnx_dml_session.cpp`
   - `onnx_dml_session_stub.cpp`
 
 ### Inference Result Path
