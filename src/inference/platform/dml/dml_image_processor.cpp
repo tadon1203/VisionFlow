@@ -50,8 +50,8 @@ class DmlImageProcessor::Impl {
         };
     }
 
-    std::expected<DispatchResult, std::error_code> dispatch(ID3D11Texture2D* frameTexture,
-                                                            std::uint64_t fenceValue) {
+    std::expected<EnqueueStatus, std::error_code> enqueuePreprocess(ID3D11Texture2D* frameTexture,
+                                                                    std::uint64_t fenceValue) {
         if (frameTexture == nullptr) {
             return std::unexpected(makeErrorCode(InferenceError::RunFailed));
         }
@@ -59,6 +59,9 @@ class DmlImageProcessor::Impl {
         std::scoped_lock lock(mutex);
         if (!initialized) {
             return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
+        }
+        if (preprocessSubmitted) {
+            return EnqueueStatus::SkippedBusy;
         }
 
         const auto interopInitResult = interop.initializeOrUpdate(frameTexture);
@@ -119,26 +122,34 @@ class DmlImageProcessor::Impl {
             return std::unexpected(signalResult.error());
         }
 
-        if (completionFence->GetCompletedValue() < completionFenceValue) {
-            const auto setEventResult = dx_utils::callD3d(
-                completionFence->SetEventOnCompletion(completionFenceValue, completionEvent),
-                "ID3D12Fence::SetEventOnCompletion(preprocess)", InferenceError::RunFailed);
-            if (!setEventResult) {
-                return std::unexpected(setEventResult.error());
-            }
+        preprocessSubmitted = true;
+        preprocessFenceValue = completionFenceValue;
+        preprocessQueue = queue;
+        preprocessCompletionFence = completionFence;
+        preprocessCompletionEvent = completionEvent;
 
-            const DWORD waitCode = WaitForSingleObject(completionEvent, INFINITE);
-            const auto waitEventResult = dx_utils::callWin32(
-                waitCode == WAIT_OBJECT_0, "WaitForSingleObject(preprocessFenceEvent)",
-                InferenceError::RunFailed);
-            if (!waitEventResult) {
-                return std::unexpected(waitEventResult.error());
-            }
+        return EnqueueStatus::Submitted;
+    }
+
+    std::expected<std::optional<DispatchResult>, std::error_code> tryCollectPreprocessResult() {
+        std::scoped_lock lock(mutex);
+        if (!initialized) {
+            return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
+        }
+        if (!preprocessSubmitted) {
+            return std::optional<DispatchResult>{};
+        }
+        if (preprocessCompletionFence == nullptr) {
+            return std::unexpected(makeErrorCode(InferenceError::InvalidState));
+        }
+        if (preprocessCompletionFence->GetCompletedValue() < preprocessFenceValue) {
+            return std::optional<DispatchResult>{};
         }
 
-        if (profiler != nullptr) {
+        if (profiler != nullptr && preprocessQueue != nullptr) {
             UINT64 timestampFrequency = 0;
-            const HRESULT frequencyResult = queue->GetTimestampFrequency(&timestampFrequency);
+            const HRESULT frequencyResult =
+                preprocessQueue->GetTimestampFrequency(&timestampFrequency);
             const auto frequencyCheck =
                 dx_utils::checkD3d(frequencyResult, "ID3D12CommandQueue::GetTimestampFrequency");
             if (!frequencyCheck || timestampFrequency == 0) {
@@ -154,6 +165,7 @@ class DmlImageProcessor::Impl {
             }
         }
 
+        preprocessSubmitted = false;
         return DispatchResult{
             .outputResource = preprocess.getOutputResource(),
             .outputBytes = preprocess.getOutputBytes(),
@@ -162,9 +174,35 @@ class DmlImageProcessor::Impl {
 
     void shutdown() {
         std::scoped_lock lock(mutex);
+        if (preprocessSubmitted && preprocessCompletionFence != nullptr &&
+            preprocessCompletionEvent != nullptr) {
+            if (preprocessCompletionFence->GetCompletedValue() < preprocessFenceValue) {
+                const auto setEventResult =
+                    dx_utils::callD3d(preprocessCompletionFence->SetEventOnCompletion(
+                                          preprocessFenceValue, preprocessCompletionEvent),
+                                      "ID3D12Fence::SetEventOnCompletion(preprocessShutdown)",
+                                      InferenceError::RunFailed);
+                if (!setEventResult) {
+                    VF_WARN("Shutdown wait setup failed: {}", setEventResult.error().message());
+                } else {
+                    const DWORD waitCode = WaitForSingleObject(preprocessCompletionEvent, INFINITE);
+                    const auto waitEventResult = dx_utils::callWin32(
+                        waitCode == WAIT_OBJECT_0, "WaitForSingleObject(preprocessShutdownEvent)",
+                        InferenceError::RunFailed);
+                    if (!waitEventResult) {
+                        VF_WARN("Shutdown wait failed: {}", waitEventResult.error().message());
+                    }
+                }
+            }
+            preprocessSubmitted = false;
+        }
         preprocess.reset();
         interop.reset();
         initialized = false;
+        preprocessFenceValue = 0;
+        preprocessQueue = nullptr;
+        preprocessCompletionFence = nullptr;
+        preprocessCompletionEvent = nullptr;
     }
 
   private:
@@ -200,6 +238,11 @@ class DmlImageProcessor::Impl {
     IProfiler* profiler = nullptr;
     std::mutex mutex;
     bool initialized = false;
+    bool preprocessSubmitted = false;
+    std::uint64_t preprocessFenceValue = 0;
+    ID3D12CommandQueue* preprocessQueue = nullptr;
+    ID3D12Fence* preprocessCompletionFence = nullptr;
+    HANDLE preprocessCompletionEvent = nullptr;
     DmlImageProcessorInterop interop;
     DmlImageProcessorPreprocess preprocess;
 };
@@ -214,9 +257,14 @@ DmlImageProcessor::initialize(ID3D11Texture2D* sourceTexture) {
     return impl->initialize(sourceTexture);
 }
 
-std::expected<DmlImageProcessor::DispatchResult, std::error_code>
-DmlImageProcessor::dispatch(ID3D11Texture2D* frameTexture, std::uint64_t fenceValue) {
-    return impl->dispatch(frameTexture, fenceValue);
+std::expected<DmlImageProcessor::EnqueueStatus, std::error_code>
+DmlImageProcessor::enqueuePreprocess(ID3D11Texture2D* frameTexture, std::uint64_t fenceValue) {
+    return impl->enqueuePreprocess(frameTexture, fenceValue);
+}
+
+std::expected<std::optional<DmlImageProcessor::DispatchResult>, std::error_code>
+DmlImageProcessor::tryCollectPreprocessResult() {
+    return impl->tryCollectPreprocessResult();
 }
 
 void DmlImageProcessor::shutdown() { impl->shutdown(); }
@@ -242,10 +290,15 @@ DmlImageProcessor::initialize(void* sourceTexture) {
     return std::unexpected(makeErrorCode(InferenceError::PlatformNotSupported));
 }
 
-std::expected<DmlImageProcessor::DispatchResult, std::error_code>
-DmlImageProcessor::dispatch(void* frameTexture, std::uint64_t fenceValue) {
+std::expected<DmlImageProcessor::EnqueueStatus, std::error_code>
+DmlImageProcessor::enqueuePreprocess(void* frameTexture, std::uint64_t fenceValue) {
     static_cast<void>(frameTexture);
     static_cast<void>(fenceValue);
+    return std::unexpected(makeErrorCode(InferenceError::PlatformNotSupported));
+}
+
+std::expected<std::optional<DmlImageProcessor::DispatchResult>, std::error_code>
+DmlImageProcessor::tryCollectPreprocessResult() {
     return std::unexpected(makeErrorCode(InferenceError::PlatformNotSupported));
 }
 

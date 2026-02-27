@@ -64,5 +64,21 @@ TEST(ProfilerTest, FlushReportEmitsCurrentSnapshot) {
     EXPECT_NE(lines[0].find("capture.poll count=1 avg=42us max=42us"), std::string::npos);
 }
 
+TEST(ProfilerTest, FlushReportEmitsEventCounters) {
+    ProfilerConfig config;
+    config.enabled = true;
+    config.reportIntervalMs = std::chrono::milliseconds(1000);
+
+    std::vector<std::string> lines;
+    Profiler profiler(config, [&lines](const std::string& line) { lines.push_back(line); });
+
+    profiler.recordEvent(ProfileStage::InferenceCollectMiss);
+    profiler.recordEvent(ProfileStage::InferenceCollectMiss, 2);
+    profiler.flushReport(std::chrono::steady_clock::time_point{});
+
+    ASSERT_EQ(lines.size(), 1U);
+    EXPECT_NE(lines[0].find("inference.collect_miss events=3"), std::string::npos);
+}
+
 } // namespace
 } // namespace vf

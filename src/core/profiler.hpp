@@ -21,6 +21,7 @@ class Profiler final : public IProfiler {
 
     void recordCpuUs(ProfileStage stage, std::uint64_t microseconds) override;
     void recordGpuUs(ProfileStage stage, std::uint64_t microseconds) override;
+    void recordEvent(ProfileStage stage, std::uint64_t count = 1) override;
     void maybeReport(std::chrono::steady_clock::time_point now) override;
     void flushReport(std::chrono::steady_clock::time_point now) override;
 
@@ -37,13 +38,19 @@ class Profiler final : public IProfiler {
         std::uint64_t maxUs = 0;
     };
 
+    struct EventCounters {
+        std::atomic<std::uint64_t> count{0};
+    };
+
     static constexpr std::size_t kStageCount = static_cast<std::size_t>(ProfileStage::Count);
 
     void record(ProfileStage stage, std::uint64_t microseconds);
     std::string buildReportLine(std::chrono::steady_clock::time_point now, bool includeEmpty);
     StageSnapshot snapshotAndReset(ProfileStage stage);
+    std::uint64_t snapshotEventsAndReset(ProfileStage stage);
 
     std::array<StageCounters, kStageCount> stageCounters{};
+    std::array<EventCounters, kStageCount> eventCounters{};
     std::chrono::milliseconds reportInterval{1000};
     std::chrono::steady_clock::time_point lastReportAt{};
     bool hasLastReportAt = false;
