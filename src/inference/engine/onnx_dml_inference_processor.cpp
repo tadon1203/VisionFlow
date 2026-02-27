@@ -127,8 +127,10 @@ std::expected<void, std::error_code> OnnxDmlInferenceProcessor::stop() {
 
 std::expected<void, std::error_code> OnnxDmlInferenceProcessor::poll() {
     std::scoped_lock lock(stateMutex);
-    return pollFaultState(state == ProcessorState::Fault, lastError,
-                          makeErrorCode(InferenceError::InvalidState));
+    return pollFaultState(
+        state == ProcessorState::Fault,
+        FaultPollErrors{.lastError = lastError,
+                        .fallbackError = makeErrorCode(InferenceError::InvalidState)});
 }
 
 void OnnxDmlInferenceProcessor::transitionToFault(std::string_view reason,

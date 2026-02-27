@@ -19,14 +19,14 @@
 
 namespace vf {
 
-class WinRtSerialPort final : public ISerialPort {
+class WinrtSerialPort final : public ISerialPort {
   public:
-    WinRtSerialPort() = default;
-    WinRtSerialPort(const WinRtSerialPort&) = delete;
-    WinRtSerialPort(WinRtSerialPort&&) = delete;
-    WinRtSerialPort& operator=(const WinRtSerialPort&) = delete;
-    WinRtSerialPort& operator=(WinRtSerialPort&&) = delete;
-    ~WinRtSerialPort() override;
+    WinrtSerialPort() = default;
+    WinrtSerialPort(const WinrtSerialPort&) = delete;
+    WinrtSerialPort(WinrtSerialPort&&) = delete;
+    WinrtSerialPort& operator=(const WinrtSerialPort&) = delete;
+    WinrtSerialPort& operator=(WinrtSerialPort&&) = delete;
+    ~WinrtSerialPort() override;
 
     [[nodiscard]] std::expected<void, std::error_code> open(const std::string& portName,
                                                             std::uint32_t baudRate) override;

@@ -8,14 +8,14 @@
 
 namespace vf {
 
-class WinRtDeviceScanner final : public IDeviceScanner {
+class WinrtDeviceScanner final : public IDeviceScanner {
   public:
-    WinRtDeviceScanner() = default;
-    WinRtDeviceScanner(const WinRtDeviceScanner&) = default;
-    WinRtDeviceScanner(WinRtDeviceScanner&&) = default;
-    WinRtDeviceScanner& operator=(const WinRtDeviceScanner&) = default;
-    WinRtDeviceScanner& operator=(WinRtDeviceScanner&&) = default;
-    ~WinRtDeviceScanner() override = default;
+    WinrtDeviceScanner() = default;
+    WinrtDeviceScanner(const WinrtDeviceScanner&) = default;
+    WinrtDeviceScanner(WinrtDeviceScanner&&) = default;
+    WinrtDeviceScanner& operator=(const WinrtDeviceScanner&) = default;
+    WinrtDeviceScanner& operator=(WinrtDeviceScanner&&) = default;
+    ~WinrtDeviceScanner() override = default;
 
     [[nodiscard]] std::expected<std::string, std::error_code>
     findPortByHardwareId(const std::string& hardwareId) const override;

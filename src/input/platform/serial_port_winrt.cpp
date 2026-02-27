@@ -49,12 +49,12 @@ void invokeDataHandlerSafely(const ISerialPort::DataReceivedHandler& handler,
 
 } // namespace
 
-WinRtSerialPort::~WinRtSerialPort() {
+WinrtSerialPort::~WinrtSerialPort() {
     const std::expected<void, std::error_code> result = close();
     static_cast<void>(result);
 }
 
-std::expected<void, std::error_code> WinRtSerialPort::open(const std::string& portName,
+std::expected<void, std::error_code> WinrtSerialPort::open(const std::string& portName,
                                                            std::uint32_t baudRate) {
 #ifndef _WIN32
     static_cast<void>(portName);
@@ -73,17 +73,17 @@ std::expected<void, std::error_code> WinRtSerialPort::open(const std::string& po
 
         try {
             const auto selector = wds::SerialDevice::GetDeviceSelector(winrt::to_hstring(portName));
-            VF_DEBUG("WinRtSerialPort::open step: before FindAllAsync.get (port={})", portName);
+            VF_DEBUG("WinrtSerialPort::open step: before FindAllAsync.get (port={})", portName);
             const auto devices = wde::DeviceInformation::FindAllAsync(selector).get();
-            VF_DEBUG("WinRtSerialPort::open step: after FindAllAsync.get (count={})",
+            VF_DEBUG("WinrtSerialPort::open step: after FindAllAsync.get (count={})",
                      devices.Size());
             if (devices.Size() == 0) {
                 return std::unexpected(makeErrorCode(MouseError::PortNotFound));
             }
 
-            VF_DEBUG("WinRtSerialPort::open step: before FromIdAsync.get (port={})", portName);
+            VF_DEBUG("WinrtSerialPort::open step: before FromIdAsync.get (port={})", portName);
             serialDevice = wds::SerialDevice::FromIdAsync(devices.GetAt(0).Id()).get();
-            VF_DEBUG("WinRtSerialPort::open step: after FromIdAsync.get (hasDevice={})",
+            VF_DEBUG("WinrtSerialPort::open step: after FromIdAsync.get (hasDevice={})",
                      serialDevice ? 1 : 0);
             if (!serialDevice) {
                 return std::unexpected(makeErrorCode(MouseError::PortOpenFailed));
@@ -124,7 +124,7 @@ std::expected<void, std::error_code> WinRtSerialPort::open(const std::string& po
 #endif
 }
 
-std::expected<void, std::error_code> WinRtSerialPort::close() {
+std::expected<void, std::error_code> WinrtSerialPort::close() {
 #ifndef _WIN32
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
 #else
@@ -144,7 +144,7 @@ std::expected<void, std::error_code> WinRtSerialPort::close() {
 #endif
 }
 
-std::expected<void, std::error_code> WinRtSerialPort::configure(std::uint32_t baudRate) {
+std::expected<void, std::error_code> WinrtSerialPort::configure(std::uint32_t baudRate) {
 #ifndef _WIN32
     static_cast<void>(baudRate);
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
@@ -164,7 +164,7 @@ std::expected<void, std::error_code> WinRtSerialPort::configure(std::uint32_t ba
 #endif
 }
 
-std::expected<void, std::error_code> WinRtSerialPort::flush() {
+std::expected<void, std::error_code> WinrtSerialPort::flush() {
 #ifndef _WIN32
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
 #else
@@ -188,7 +188,7 @@ std::expected<void, std::error_code> WinRtSerialPort::flush() {
 #endif
 }
 
-std::expected<void, std::error_code> WinRtSerialPort::write(std::span<const std::uint8_t> payload) {
+std::expected<void, std::error_code> WinrtSerialPort::write(std::span<const std::uint8_t> payload) {
 #ifndef _WIN32
     static_cast<void>(payload);
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
@@ -219,13 +219,13 @@ std::expected<void, std::error_code> WinRtSerialPort::write(std::span<const std:
 #endif
 }
 
-void WinRtSerialPort::setDataReceivedHandler(DataReceivedHandler handler) {
+void WinrtSerialPort::setDataReceivedHandler(DataReceivedHandler handler) {
     std::scoped_lock lock(callbackMutex);
     dataReceivedHandler = std::move(handler);
 }
 
 std::expected<std::size_t, std::error_code>
-WinRtSerialPort::readSome(std::span<std::uint8_t> buffer) {
+WinrtSerialPort::readSome(std::span<std::uint8_t> buffer) {
 #ifndef _WIN32
     static_cast<void>(buffer);
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
@@ -254,7 +254,7 @@ WinRtSerialPort::readSome(std::span<std::uint8_t> buffer) {
 #endif
 }
 
-void WinRtSerialPort::startReadThread() {
+void WinrtSerialPort::startReadThread() {
     if (readThread.joinable()) {
         return;
     }
@@ -262,7 +262,7 @@ void WinRtSerialPort::startReadThread() {
     readThread = std::jthread([this](const std::stop_token& stopToken) { readLoop(stopToken); });
 }
 
-void WinRtSerialPort::stopReadThread() {
+void WinrtSerialPort::stopReadThread() {
     if (!readThread.joinable()) {
         return;
     }
@@ -271,7 +271,7 @@ void WinRtSerialPort::stopReadThread() {
     readThread.join();
 }
 
-void WinRtSerialPort::readLoop(const std::stop_token& stopToken) {
+void WinrtSerialPort::readLoop(const std::stop_token& stopToken) {
 #ifdef _WIN32
     while (!stopToken.stop_requested()) {
         std::array<std::uint8_t, 256> buffer{};

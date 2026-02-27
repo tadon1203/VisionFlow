@@ -11,7 +11,7 @@
 
 namespace vf {
 
-WinRtPlatformContext::~WinRtPlatformContext() {
+WinrtPlatformContext::~WinrtPlatformContext() {
 #ifdef _WIN32
     if (initialized) {
         winrt::uninit_apartment();
@@ -19,7 +19,7 @@ WinRtPlatformContext::~WinRtPlatformContext() {
 #endif
 }
 
-std::expected<void, std::error_code> WinRtPlatformContext::initialize() {
+std::expected<void, std::error_code> WinrtPlatformContext::initialize() {
 #ifdef _WIN32
     if (initialized) {
         return {};

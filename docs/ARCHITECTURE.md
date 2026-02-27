@@ -1,4 +1,21 @@
-#VisionFlow Architecture(Core)
+# VisionFlow Architecture (Core)
+
+## Reading Guide (Minimize Cognitive Load)
+Suggested order for first-time readers:
+
+1. `src/main.cpp` for process startup/shutdown and platform initialization.
+2. `src/core/app.cpp` for the main loop structure and error propagation.
+3. `src/core/app_factory.cpp` for the composition root (wiring capture/inference/input).
+4. Domain implementations:
+  - Capture: `src/capture/runtime/` and `src/capture/sources/winrt/`
+  - Inference: `src/inference/api/`, `src/inference/engine/`, `src/inference/platform/dml/`
+  - Input: `src/input/`, `src/input/makcu/`, `src/input/platform/`
+
+Behavioral contracts are often easiest to confirm via unit tests:
+- `tests/unit/core/app_test.cpp` (shutdown order, error propagation)
+- `tests/unit/capture/capture_runtime_winrt_test.cpp` (poll/stop semantics)
+- `tests/unit/input/makcu_controller_test.cpp` (reconnect behavior after send failure)
+- `tests/unit/core/config_loader_test.cpp` (default config creation and validation)
 
 ## Purpose
 This document describes the core architecture of VisionFlow so contributors can reason about
@@ -35,7 +52,7 @@ This document explains architecture at component and boundary level.
 ```text
 main
   -> loadConfig()
-  -> WinRtPlatformContext (RAII)
+  -> WinrtPlatformContext (RAII)
   -> App(config)
     -> IInferenceProcessor (interface)
       -> OnnxDmlInferenceProcessor
@@ -51,7 +68,7 @@ main
       -> IMouseController (interface)
         -> MakcuMouseController (implementation, `MakcuController` is an alias)
           -> IDeviceScanner / ISerialPort (interfaces)
-            -> WinRtDeviceScanner / WinRtSerialPort (platform adapters)
+            -> WinrtDeviceScanner / WinrtSerialPort (platform adapters)
 ```
 
 ## Core Layers

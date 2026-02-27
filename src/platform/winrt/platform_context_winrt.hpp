@@ -5,14 +5,14 @@
 
 namespace vf {
 
-class WinRtPlatformContext final {
+class WinrtPlatformContext final {
   public:
-    WinRtPlatformContext() = default;
-    WinRtPlatformContext(const WinRtPlatformContext&) = delete;
-    WinRtPlatformContext(WinRtPlatformContext&&) = delete;
-    WinRtPlatformContext& operator=(const WinRtPlatformContext&) = delete;
-    WinRtPlatformContext& operator=(WinRtPlatformContext&&) = delete;
-    ~WinRtPlatformContext();
+    WinrtPlatformContext() = default;
+    WinrtPlatformContext(const WinrtPlatformContext&) = delete;
+    WinrtPlatformContext(WinrtPlatformContext&&) = delete;
+    WinrtPlatformContext& operator=(const WinrtPlatformContext&) = delete;
+    WinrtPlatformContext& operator=(WinrtPlatformContext&&) = delete;
+    ~WinrtPlatformContext();
 
     [[nodiscard]] std::expected<void, std::error_code> initialize();
 

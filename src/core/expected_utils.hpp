@@ -5,6 +5,11 @@
 
 namespace vf {
 
+struct FaultPollErrors {
+    std::error_code lastError;
+    std::error_code fallbackError;
+};
+
 template <typename T>
 [[nodiscard]] inline std::expected<void, std::error_code>
 propagateFailure(const std::expected<T, std::error_code>& result) {
@@ -15,14 +20,14 @@ propagateFailure(const std::expected<T, std::error_code>& result) {
 }
 
 [[nodiscard]] inline std::expected<void, std::error_code>
-pollFaultState(bool fault, const std::error_code& lastError, const std::error_code& fallbackError) {
+pollFaultState(bool fault, const FaultPollErrors& errors) {
     if (!fault) {
         return {};
     }
-    if (lastError) {
-        return std::unexpected(lastError);
+    if (errors.lastError) {
+        return std::unexpected(errors.lastError);
     }
-    return std::unexpected(fallbackError);
+    return std::unexpected(errors.fallbackError);
 }
 
 } // namespace vf

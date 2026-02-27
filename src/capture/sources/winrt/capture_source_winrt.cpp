@@ -176,8 +176,10 @@ std::expected<void, std::error_code> WinrtCaptureSource::stop() {
 
 std::expected<void, std::error_code> WinrtCaptureSource::poll() {
     std::scoped_lock lock(stateMutex);
-    return pollFaultState(state == CaptureState::Fault, lastError,
-                          makeErrorCode(CaptureError::InvalidState));
+    return pollFaultState(
+        state == CaptureState::Fault,
+        FaultPollErrors{.lastError = lastError,
+                        .fallbackError = makeErrorCode(CaptureError::InvalidState)});
 }
 
 #ifdef _WIN32

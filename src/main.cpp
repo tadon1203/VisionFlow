@@ -13,7 +13,7 @@ int main() {
         return -1;
     }
 
-    vf::WinRtPlatformContext platformContext;
+    vf::WinrtPlatformContext platformContext;
     const auto platformInitResult = platformContext.initialize();
     if (!platformInitResult) {
         VF_ERROR("Failed to initialize platform runtime: {} ({})",

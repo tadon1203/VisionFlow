@@ -9,8 +9,8 @@
 namespace vf {
 
 std::unique_ptr<IMouseController> createMouseController(const VisionFlowConfig& config) {
-    auto serialPort = std::make_unique<WinRtSerialPort>();
-    auto deviceScanner = std::make_unique<WinRtDeviceScanner>();
+    auto serialPort = std::make_unique<WinrtSerialPort>();
+    auto deviceScanner = std::make_unique<WinrtDeviceScanner>();
     return std::make_unique<MakcuMouseController>(std::move(serialPort), std::move(deviceScanner),
                                                   config.makcu);
 }

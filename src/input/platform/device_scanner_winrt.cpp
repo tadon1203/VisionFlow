@@ -19,7 +19,7 @@
 namespace vf {
 
 std::expected<std::string, std::error_code>
-WinRtDeviceScanner::findPortByHardwareId(const std::string& hardwareId) const {
+WinrtDeviceScanner::findPortByHardwareId(const std::string& hardwareId) const {
 #ifndef _WIN32
     static_cast<void>(hardwareId);
     return std::unexpected(makeErrorCode(MouseError::PlatformNotSupported));
