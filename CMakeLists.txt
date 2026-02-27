@@ -105,6 +105,7 @@ target_link_libraries(vf_input
 
 add_library(vf_capture STATIC
     src/capture/capture_error.cpp
+    src/capture/runtime/capture_runtime_state.cpp
     src/capture/runtime/capture_runtime_winrt.cpp
     src/capture/sources/winrt/capture_source_winrt.cpp
     src/capture/sources/winrt/winrt_capture_session.cpp

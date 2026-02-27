@@ -1,6 +1,7 @@
 add_executable(VisionFlowUnitTests
     unit/capture/capture_error_test.cpp
     unit/capture/capture_runtime_winrt_test.cpp
+    unit/capture/capture_source_winrt_test.cpp
     unit/capture/frame_sequencer_test.cpp
     unit/capture/inference_result_store_test.cpp
     unit/capture/onnx_dml_session_test.cpp

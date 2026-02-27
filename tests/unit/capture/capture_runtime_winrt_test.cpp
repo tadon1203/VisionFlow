@@ -53,5 +53,15 @@ TEST(WinrtCaptureRuntimeTest, AttachInferenceProcessorSucceedsWhenSinkInterfaceE
     EXPECT_TRUE(result.has_value());
 }
 
+TEST(WinrtCaptureRuntimeTest, StopIsIdempotentWhenRuntimeIsIdle) {
+    WinrtCaptureRuntime runtime;
+
+    const auto first = runtime.stop();
+    const auto second = runtime.stop();
+
+    EXPECT_TRUE(first.has_value());
+    EXPECT_TRUE(second.has_value());
+}
+
 } // namespace
 } // namespace vf

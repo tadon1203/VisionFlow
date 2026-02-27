@@ -4,6 +4,7 @@
 #include <expected>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <system_error>
 
 #include "VisionFlow/core/config.hpp"
@@ -29,7 +30,7 @@ class WinrtCaptureSource {
     WinrtCaptureSource& operator=(WinrtCaptureSource&&) = delete;
     ~WinrtCaptureSource();
 
-    void setFrameSink(IWinrtFrameSink* frameSink);
+    void bindFrameSink(IWinrtFrameSink* frameSink);
     [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config);
     [[nodiscard]] std::expected<void, std::error_code> stop();
 
@@ -43,6 +44,16 @@ class WinrtCaptureSource {
     };
 
 #ifdef _WIN32
+    struct ArrivedFrame {
+        winrt::com_ptr<ID3D11Texture2D> texture;
+        CaptureFrameInfo info;
+    };
+
+    [[nodiscard]] IWinrtFrameSink* trySnapshotRunningSink();
+    [[nodiscard]] std::optional<ArrivedFrame> tryAcquireArrivedFrame(
+        const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender);
+    void forwardFrameToSink(IWinrtFrameSink& sink, const ArrivedFrame& frame) const;
+
     void onFrameArrived(const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender,
                         const winrt::Windows::Foundation::IInspectable& args);
 #endif

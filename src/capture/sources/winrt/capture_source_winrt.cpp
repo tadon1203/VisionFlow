@@ -4,6 +4,7 @@
 #include <expected>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <system_error>
 #include <utility>
 
@@ -34,7 +35,7 @@ WinrtCaptureSource::~WinrtCaptureSource() {
     }
 }
 
-void WinrtCaptureSource::setFrameSink(IWinrtFrameSink* nextFrameSink) {
+void WinrtCaptureSource::bindFrameSink(IWinrtFrameSink* nextFrameSink) {
     std::scoped_lock lock(stateMutex);
     frameSink = nextFrameSink;
 }
@@ -158,69 +159,74 @@ std::expected<void, std::error_code> WinrtCaptureSource::stop() {
 
 #ifdef _WIN32
 
+IWinrtFrameSink* WinrtCaptureSource::trySnapshotRunningSink() {
+    std::scoped_lock lock(stateMutex);
+    if (state != CaptureState::Running) {
+        return nullptr;
+    }
+    return frameSink;
+}
+
+std::optional<WinrtCaptureSource::ArrivedFrame> WinrtCaptureSource::tryAcquireArrivedFrame(
+    const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender) {
+    const auto frame = sender.TryGetNextFrame();
+    if (!frame) {
+        return std::nullopt;
+    }
+
+    const auto surface = frame.Surface();
+    if (!surface) {
+        return std::nullopt;
+    }
+
+    auto access =
+        surface.as<Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess>();
+    winrt::com_ptr<ID3D11Texture2D> texture;
+    void* textureRaw = nullptr;
+    const HRESULT hr = access->GetInterface(__uuidof(ID3D11Texture2D), &textureRaw);
+    if (SUCCEEDED(hr)) {
+        texture.attach(static_cast<ID3D11Texture2D*>(textureRaw));
+    }
+    if (FAILED(hr) || texture == nullptr) {
+        return std::nullopt;
+    }
+
+    D3D11_TEXTURE2D_DESC desc{};
+    texture->GetDesc(&desc);
+
+    CaptureFrameInfo info;
+    info.width = desc.Width;
+    info.height = desc.Height;
+    info.systemRelativeTime100ns = frame.SystemRelativeTime().count();
+
+    return ArrivedFrame{
+        .texture = std::move(texture),
+        .info = info,
+    };
+}
+
+void WinrtCaptureSource::forwardFrameToSink(IWinrtFrameSink& sink,
+                                            const ArrivedFrame& frame) const {
+    sink.onFrame(frame.texture.get(), frame.info);
+}
+
 void WinrtCaptureSource::onFrameArrived(
     const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender,
     const winrt::Windows::Foundation::IInspectable& args) {
     static_cast<void>(args);
 
-    IWinrtFrameSink* frameSinkSnapshot = nullptr;
-    {
-        std::scoped_lock lock(stateMutex);
-        if (state != CaptureState::Running) {
-            return;
-        }
-        frameSinkSnapshot = frameSink;
-    }
+    IWinrtFrameSink* frameSinkSnapshot = trySnapshotRunningSink();
     if (frameSinkSnapshot == nullptr) {
         return;
     }
 
-    {
-        std::scoped_lock lock(stateMutex);
-        if (state != CaptureState::Running) {
-            return;
-        }
-    }
-
     try {
-        const auto frame = sender.TryGetNextFrame();
-        if (!frame) {
+        const std::optional<ArrivedFrame> arrivedFrame = tryAcquireArrivedFrame(sender);
+        if (!arrivedFrame.has_value()) {
             return;
         }
 
-        const auto surface = frame.Surface();
-        if (!surface) {
-            return;
-        }
-
-        auto access =
-            surface.as<Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess>();
-        winrt::com_ptr<ID3D11Texture2D> texture;
-        void* textureRaw = nullptr;
-        const HRESULT hr = access->GetInterface(__uuidof(ID3D11Texture2D), &textureRaw);
-        if (SUCCEEDED(hr)) {
-            texture.attach(static_cast<ID3D11Texture2D*>(textureRaw));
-        }
-        if (FAILED(hr) || !texture) {
-            return;
-        }
-
-        D3D11_TEXTURE2D_DESC desc{};
-        texture->GetDesc(&desc);
-
-        CaptureFrameInfo info;
-        info.width = desc.Width;
-        info.height = desc.Height;
-        info.systemRelativeTime100ns = frame.SystemRelativeTime().count();
-
-        {
-            std::scoped_lock lock(stateMutex);
-            if (state != CaptureState::Running) {
-                return;
-            }
-        }
-
-        frameSinkSnapshot->onFrame(texture.get(), info);
+        forwardFrameToSink(*frameSinkSnapshot, arrivedFrame.value());
     } catch (const winrt::hresult_error& ex) {
         VF_WARN("WinrtCaptureSource frame processing failed with WinRT exception: {}",
                 winrt::to_string(ex.message()));

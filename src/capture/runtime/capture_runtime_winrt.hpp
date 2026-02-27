@@ -8,6 +8,7 @@
 
 namespace vf {
 
+class CaptureRuntimeStateMachine;
 class IInferenceProcessor;
 class IWinrtFrameSink;
 class WinrtCaptureSource;
@@ -27,10 +28,11 @@ class WinrtCaptureRuntime final : public ICaptureRuntime {
     attachInferenceProcessor(IInferenceProcessor& processor);
 
   private:
-    void setFrameSink(IWinrtFrameSink* frameSink);
+    void attachFrameSink(IWinrtFrameSink* frameSink);
 
     IWinrtFrameSink* frameSink = nullptr;
     std::unique_ptr<WinrtCaptureSource> source;
+    std::unique_ptr<CaptureRuntimeStateMachine> runtimeState;
 };
 
 } // namespace vf

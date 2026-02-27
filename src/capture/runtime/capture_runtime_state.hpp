@@ -1,0 +1,34 @@
+#pragma once
+
+#include <cstdint>
+#include <expected>
+#include <mutex>
+#include <system_error>
+
+namespace vf {
+
+class CaptureRuntimeStateMachine {
+  public:
+    [[nodiscard]] std::expected<void, std::error_code> beforeAttachSink();
+    [[nodiscard]] std::expected<void, std::error_code> beforeStart(bool sinkAttached,
+                                                                   bool sourceAvailable);
+    void onStartSucceeded();
+    void onStartFailed();
+
+    [[nodiscard]] std::expected<void, std::error_code> beforeStop();
+    void onStopCompleted(bool succeeded);
+
+  private:
+    enum class RuntimeState : std::uint8_t {
+        Idle,
+        Starting,
+        Running,
+        Stopping,
+        Fault,
+    };
+
+    std::mutex mutex;
+    RuntimeState state = RuntimeState::Idle;
+};
+
+} // namespace vf

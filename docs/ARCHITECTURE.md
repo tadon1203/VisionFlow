@@ -115,6 +115,7 @@ main
 - `WinrtCaptureRuntime` is capture-only and does not own inference lifecycle
 - `AppFactory` attaches `IInferenceProcessor` to `WinrtCaptureRuntime`; runtime resolves private
   `IWinrtFrameSink` internally
+- `WinrtCaptureRuntime` validates state transitions through `CaptureRuntimeStateMachine`
 
 ## Platform Boundary and Composition
 - `main` owns platform runtime scope and initializes platform context
@@ -143,6 +144,7 @@ main
 4. Create frame pool and subscribe `FrameArrived`
 5. Start capture session
 6. Push each texture frame to capture processor
+6.1. `WinrtCaptureSource` stage flow: `snapshot sink -> acquire frame -> forward to sink`
 7. Keep only the freshest frame in the processor and drop stale frames
 8. `OnnxDmlInferenceProcessor` forwards only the latest frame to `DmlImageProcessor`
 9. `DmlImageProcessor` owns shared texture/fence bridging (D3D11/D3D12 interop)
