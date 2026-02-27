@@ -7,7 +7,6 @@
 #include <system_error>
 
 #include "VisionFlow/capture/capture_error.hpp"
-#include "VisionFlow/core/logger.hpp"
 #include "inference/platform/dml/dml_image_processor_interop.hpp"
 #include "inference/platform/dml/dml_image_processor_preprocess.hpp"
 #include "inference/platform/dml/dx_utils.hpp"
@@ -22,26 +21,6 @@
 namespace vf {
 
 #ifdef _WIN32
-namespace {
-
-std::expected<void, std::error_code> toError(std::expected<void, dx_utils::DxCallError> result,
-                                             CaptureError errorCode) {
-    if (result) {
-        return {};
-    }
-
-    const dx_utils::DxCallError err = result.error();
-    if (err.isWin32) {
-        VF_ERROR("{} failed (Win32Error=0x{:08X})", err.apiName,
-                 static_cast<std::uint32_t>(HRESULT_CODE(err.hr)));
-    } else {
-        VF_ERROR("{} failed (HRESULT=0x{:08X})", err.apiName, static_cast<std::uint32_t>(err.hr));
-    }
-    return std::unexpected(makeErrorCode(errorCode));
-}
-
-} // namespace
-
 class DmlImageProcessor::Impl {
   public:
     explicit Impl(OnnxDmlSession& session) : session(session) {}
@@ -133,29 +112,29 @@ class DmlImageProcessor::Impl {
         queue->ExecuteCommandLists(static_cast<UINT>(commandLists.size()), commandLists.data());
 
         const std::uint64_t completionFenceValue = preprocess.nextFenceValue();
-        const auto signalResult =
-            toError(dx_utils::checkD3d(queue->Signal(completionFence, completionFenceValue),
-                                       "ID3D12CommandQueue::Signal(preprocess)"),
-                    CaptureError::InferenceRunFailed);
+        const auto signalResult = dx_utils::toError(
+            dx_utils::checkD3d(queue->Signal(completionFence, completionFenceValue),
+                               "ID3D12CommandQueue::Signal(preprocess)"),
+            CaptureError::InferenceRunFailed);
         if (!signalResult) {
             return std::unexpected(signalResult.error());
         }
 
         if (completionFence->GetCompletedValue() < completionFenceValue) {
-            const auto setEventResult =
-                toError(dx_utils::checkD3d(completionFence->SetEventOnCompletion(
-                                               completionFenceValue, completionEvent),
-                                           "ID3D12Fence::SetEventOnCompletion(preprocess)"),
-                        CaptureError::InferenceRunFailed);
+            const auto setEventResult = dx_utils::toError(
+                dx_utils::checkD3d(
+                    completionFence->SetEventOnCompletion(completionFenceValue, completionEvent),
+                    "ID3D12Fence::SetEventOnCompletion(preprocess)"),
+                CaptureError::InferenceRunFailed);
             if (!setEventResult) {
                 return std::unexpected(setEventResult.error());
             }
 
             const DWORD waitCode = WaitForSingleObject(completionEvent, INFINITE);
             const auto waitEventResult =
-                toError(dx_utils::checkWin32(waitCode == WAIT_OBJECT_0,
-                                             "WaitForSingleObject(preprocessFenceEvent)"),
-                        CaptureError::InferenceRunFailed);
+                dx_utils::toError(dx_utils::checkWin32(waitCode == WAIT_OBJECT_0,
+                                                       "WaitForSingleObject(preprocessFenceEvent)"),
+                                  CaptureError::InferenceRunFailed);
             if (!waitEventResult) {
                 return std::unexpected(waitEventResult.error());
             }

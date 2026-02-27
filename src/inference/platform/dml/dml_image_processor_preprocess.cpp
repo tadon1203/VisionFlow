@@ -59,22 +59,6 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 }
 )";
 
-std::expected<void, std::error_code> toError(std::expected<void, dx_utils::DxCallError> result,
-                                             CaptureError errorCode) {
-    if (result) {
-        return {};
-    }
-
-    const dx_utils::DxCallError err = result.error();
-    if (err.isWin32) {
-        VF_ERROR("{} failed (Win32Error=0x{:08X})", err.apiName,
-                 static_cast<std::uint32_t>(HRESULT_CODE(err.hr)));
-    } else {
-        VF_ERROR("{} failed (HRESULT=0x{:08X})", err.apiName, static_cast<std::uint32_t>(err.hr));
-    }
-    return std::unexpected(makeErrorCode(errorCode));
-}
-
 std::expected<winrt::com_ptr<ID3DBlob>, std::error_code> compileShader() {
     winrt::com_ptr<ID3DBlob> byteCode;
     winrt::com_ptr<ID3DBlob> errorBlob;
@@ -138,13 +122,13 @@ class DmlImageProcessorPreprocess::Impl {
         const D3D12_RESOURCE_DESC outputDesc = dx_utils::makeRawBufferDesc(
             static_cast<UINT64>(outputBytesValue), D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
-        const auto createOutputResult =
-            toError(dx_utils::checkD3d(d3d12Device->CreateCommittedResource(
-                                           &heapProperties, D3D12_HEAP_FLAG_NONE, &outputDesc,
-                                           D3D12_RESOURCE_STATE_COMMON, nullptr,
-                                           __uuidof(ID3D12Resource), outputResource.put_void()),
-                                       "ID3D12Device::CreateCommittedResource(output)"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto createOutputResult = dx_utils::toError(
+            dx_utils::checkD3d(d3d12Device->CreateCommittedResource(
+                                   &heapProperties, D3D12_HEAP_FLAG_NONE, &outputDesc,
+                                   D3D12_RESOURCE_STATE_COMMON, nullptr, __uuidof(ID3D12Resource),
+                                   outputResource.put_void()),
+                               "ID3D12Device::CreateCommittedResource(output)"),
+            CaptureError::InferenceInitializationFailed);
         if (!createOutputResult) {
             return std::unexpected(createOutputResult.error());
         }
@@ -189,11 +173,11 @@ class DmlImageProcessorPreprocess::Impl {
         winrt::com_ptr<ID3DBlob> rootSigBlob;
         winrt::com_ptr<ID3DBlob> rootSigErr;
         const auto serializeResult =
-            toError(dx_utils::checkD3d(
-                        D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
-                                                    rootSigBlob.put(), rootSigErr.put()),
-                        "D3D12SerializeRootSignature"),
-                    CaptureError::InferenceInitializationFailed);
+            dx_utils::toError(dx_utils::checkD3d(D3D12SerializeRootSignature(
+                                                     &rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+                                                     rootSigBlob.put(), rootSigErr.put()),
+                                                 "D3D12SerializeRootSignature"),
+                              CaptureError::InferenceInitializationFailed);
         if (!serializeResult) {
             if (rootSigErr != nullptr) {
                 VF_ERROR("D3D12 root signature serialization message: {}",
@@ -202,7 +186,7 @@ class DmlImageProcessorPreprocess::Impl {
             return std::unexpected(serializeResult.error());
         }
 
-        const auto createRootResult = toError(
+        const auto createRootResult = dx_utils::toError(
             dx_utils::checkD3d(d3d12Device->CreateRootSignature(
                                    0, rootSigBlob->GetBufferPointer(), rootSigBlob->GetBufferSize(),
                                    __uuidof(ID3D12RootSignature), rootSignature.put_void()),
@@ -220,11 +204,11 @@ class DmlImageProcessorPreprocess::Impl {
         psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 
         const auto createPsoResult =
-            toError(dx_utils::checkD3d(
-                        d3d12Device->CreateComputePipelineState(
-                            &psoDesc, __uuidof(ID3D12PipelineState), pipelineState.put_void()),
-                        "ID3D12Device::CreateComputePipelineState"),
-                    CaptureError::InferenceInitializationFailed);
+            dx_utils::toError(dx_utils::checkD3d(d3d12Device->CreateComputePipelineState(
+                                                     &psoDesc, __uuidof(ID3D12PipelineState),
+                                                     pipelineState.put_void()),
+                                                 "ID3D12Device::CreateComputePipelineState"),
+                              CaptureError::InferenceInitializationFailed);
         if (!createPsoResult) {
             return std::unexpected(createPsoResult.error());
         }
@@ -236,11 +220,11 @@ class DmlImageProcessorPreprocess::Impl {
         heapDesc.NodeMask = 0;
 
         const auto createHeapResult =
-            toError(dx_utils::checkD3d(
-                        d3d12Device->CreateDescriptorHeap(&heapDesc, __uuidof(ID3D12DescriptorHeap),
-                                                          descriptorHeap.put_void()),
-                        "ID3D12Device::CreateDescriptorHeap"),
-                    CaptureError::InferenceInitializationFailed);
+            dx_utils::toError(dx_utils::checkD3d(d3d12Device->CreateDescriptorHeap(
+                                                     &heapDesc, __uuidof(ID3D12DescriptorHeap),
+                                                     descriptorHeap.put_void()),
+                                                 "ID3D12Device::CreateDescriptorHeap"),
+                              CaptureError::InferenceInitializationFailed);
         if (!createHeapResult) {
             return std::unexpected(createHeapResult.error());
         }
@@ -260,7 +244,7 @@ class DmlImageProcessorPreprocess::Impl {
         uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
         d3d12Device->CreateUnorderedAccessView(outputResource.get(), nullptr, &uavDesc, uavCpu);
 
-        const auto createAllocatorResult = toError(
+        const auto createAllocatorResult = dx_utils::toError(
             dx_utils::checkD3d(d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
                                                                    __uuidof(ID3D12CommandAllocator),
                                                                    commandAllocator.put_void()),
@@ -270,7 +254,7 @@ class DmlImageProcessorPreprocess::Impl {
             return std::unexpected(createAllocatorResult.error());
         }
 
-        const auto createListResult = toError(
+        const auto createListResult = dx_utils::toError(
             dx_utils::checkD3d(d3d12Device->CreateCommandList(
                                    0, D3D12_COMMAND_LIST_TYPE_DIRECT, commandAllocator.get(),
                                    pipelineState.get(), __uuidof(ID3D12GraphicsCommandList),
@@ -281,28 +265,28 @@ class DmlImageProcessorPreprocess::Impl {
             return std::unexpected(createListResult.error());
         }
 
-        const auto closeInitListResult = toError(
+        const auto closeInitListResult = dx_utils::toError(
             dx_utils::checkD3d(commandList->Close(), "ID3D12GraphicsCommandList::Close(initial)"),
             CaptureError::InferenceInitializationFailed);
         if (!closeInitListResult) {
             return std::unexpected(closeInitListResult.error());
         }
 
-        const auto createFenceResult =
-            toError(dx_utils::checkD3d(d3d12Device->CreateFence(0, D3D12_FENCE_FLAG_NONE,
-                                                                __uuidof(ID3D12Fence),
-                                                                completionFenceRef.put_void()),
-                                       "ID3D12Device::CreateFence"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto createFenceResult = dx_utils::toError(
+            dx_utils::checkD3d(d3d12Device->CreateFence(0, D3D12_FENCE_FLAG_NONE,
+                                                        __uuidof(ID3D12Fence),
+                                                        completionFenceRef.put_void()),
+                               "ID3D12Device::CreateFence"),
+            CaptureError::InferenceInitializationFailed);
         if (!createFenceResult) {
             return std::unexpected(createFenceResult.error());
         }
 
         completionEventRef.reset(CreateEventW(nullptr, FALSE, FALSE, nullptr));
         const auto createEventResult =
-            toError(dx_utils::checkWin32(completionEventRef.get() != nullptr,
-                                         "CreateEventW(computeCompletionEvent)"),
-                    CaptureError::InferenceInitializationFailed);
+            dx_utils::toError(dx_utils::checkWin32(completionEventRef.get() != nullptr,
+                                                   "CreateEventW(computeCompletionEvent)"),
+                              CaptureError::InferenceInitializationFailed);
         if (!createEventResult) {
             return std::unexpected(createEventResult.error());
         }
@@ -342,14 +326,14 @@ class DmlImageProcessorPreprocess::Impl {
             return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
         }
 
-        const auto resetAllocatorResult =
-            toError(dx_utils::checkD3d(commandAllocator->Reset(), "ID3D12CommandAllocator::Reset"),
-                    CaptureError::InferenceRunFailed);
+        const auto resetAllocatorResult = dx_utils::toError(
+            dx_utils::checkD3d(commandAllocator->Reset(), "ID3D12CommandAllocator::Reset"),
+            CaptureError::InferenceRunFailed);
         if (!resetAllocatorResult) {
             return std::unexpected(resetAllocatorResult.error());
         }
 
-        const auto resetListResult = toError(
+        const auto resetListResult = dx_utils::toError(
             dx_utils::checkD3d(commandList->Reset(commandAllocator.get(), pipelineState.get()),
                                "ID3D12GraphicsCommandList::Reset"),
             CaptureError::InferenceRunFailed);
@@ -405,9 +389,9 @@ class DmlImageProcessorPreprocess::Impl {
             return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
         }
 
-        const auto closeResult =
-            toError(dx_utils::checkD3d(commandList->Close(), "ID3D12GraphicsCommandList::Close"),
-                    CaptureError::InferenceRunFailed);
+        const auto closeResult = dx_utils::toError(
+            dx_utils::checkD3d(commandList->Close(), "ID3D12GraphicsCommandList::Close"),
+            CaptureError::InferenceRunFailed);
         if (!closeResult) {
             return std::unexpected(closeResult.error());
         }

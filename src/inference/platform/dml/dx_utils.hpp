@@ -1,8 +1,13 @@
 #pragma once
 
+#include <cstdint>
 #include <expected>
+#include <system_error>
 #include <type_traits>
 #include <utility>
+
+#include "VisionFlow/capture/capture_error.hpp"
+#include "VisionFlow/core/logger.hpp"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -106,6 +111,22 @@ class UniqueWin32Handle {
     const DWORD lastError = GetLastError();
     return std::unexpected(
         DxCallError{.hr = HRESULT_FROM_WIN32(lastError), .apiName = apiName, .isWin32 = true});
+}
+
+[[nodiscard]] inline std::expected<void, std::error_code>
+toError(std::expected<void, DxCallError> result, CaptureError errorCode) {
+    if (result) {
+        return {};
+    }
+
+    const DxCallError err = result.error();
+    if (err.isWin32) {
+        VF_ERROR("{} failed (Win32Error=0x{:08X})", err.apiName,
+                 static_cast<std::uint32_t>(HRESULT_CODE(err.hr)));
+    } else {
+        VF_ERROR("{} failed (HRESULT=0x{:08X})", err.apiName, static_cast<std::uint32_t>(err.hr));
+    }
+    return std::unexpected(makeErrorCode(errorCode));
 }
 
 [[nodiscard]] inline D3D12_HEAP_PROPERTIES makeDefaultHeapProperties() {

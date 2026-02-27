@@ -21,26 +21,6 @@
 namespace vf {
 
 #ifdef _WIN32
-namespace {
-
-std::expected<void, std::error_code> toError(std::expected<void, dx_utils::DxCallError> result,
-                                             CaptureError errorCode) {
-    if (result) {
-        return {};
-    }
-
-    const dx_utils::DxCallError err = result.error();
-    if (err.isWin32) {
-        VF_ERROR("{} failed (Win32Error=0x{:08X})", err.apiName,
-                 static_cast<std::uint32_t>(HRESULT_CODE(err.hr)));
-    } else {
-        VF_ERROR("{} failed (HRESULT=0x{:08X})", err.apiName, static_cast<std::uint32_t>(err.hr));
-    }
-    return std::unexpected(makeErrorCode(errorCode));
-}
-
-} // namespace
-
 class DmlImageProcessorInterop::Impl {
   public:
     std::expected<DmlInteropUpdateResult, std::error_code>
@@ -123,7 +103,7 @@ class DmlImageProcessorInterop::Impl {
         }
         lastInteropFenceValue = effectiveFenceValue;
 
-        const auto signalResult = toError(
+        const auto signalResult = dx_utils::toError(
             dx_utils::checkD3d(d3d11Context4->Signal(interopFenceD3d11.get(), effectiveFenceValue),
                                "ID3D11DeviceContext4::Signal(sharedInput)"),
             CaptureError::InferenceGpuInteropFailed);
@@ -139,10 +119,10 @@ class DmlImageProcessorInterop::Impl {
             return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
         }
 
-        const auto waitResult =
-            toError(dx_utils::checkD3d(d3d12Queue->Wait(interopFenceD3d12.get(), fenceValue),
-                                       "ID3D12CommandQueue::Wait(sharedInput)"),
-                    CaptureError::InferenceGpuInteropFailed);
+        const auto waitResult = dx_utils::toError(
+            dx_utils::checkD3d(d3d12Queue->Wait(interopFenceD3d12.get(), fenceValue),
+                               "ID3D12CommandQueue::Wait(sharedInput)"),
+            CaptureError::InferenceGpuInteropFailed);
         if (!waitResult) {
             return std::unexpected(waitResult.error());
         }
@@ -256,20 +236,20 @@ class DmlImageProcessorInterop::Impl {
             return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
         }
 
-        const auto queryDevice5Result =
-            toError(dx_utils::checkD3d(d3d11Device->QueryInterface(__uuidof(ID3D11Device5),
-                                                                   d3d11Device5.put_void()),
-                                       "ID3D11Device::QueryInterface(ID3D11Device5)"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto queryDevice5Result = dx_utils::toError(
+            dx_utils::checkD3d(
+                d3d11Device->QueryInterface(__uuidof(ID3D11Device5), d3d11Device5.put_void()),
+                "ID3D11Device::QueryInterface(ID3D11Device5)"),
+            CaptureError::InferenceInitializationFailed);
         if (!queryDevice5Result) {
             return std::unexpected(queryDevice5Result.error());
         }
 
-        const auto queryContext4Result =
-            toError(dx_utils::checkD3d(d3d11Context->QueryInterface(__uuidof(ID3D11DeviceContext4),
-                                                                    d3d11Context4.put_void()),
-                                       "ID3D11DeviceContext::QueryInterface(ID3D11DeviceContext4)"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto queryContext4Result = dx_utils::toError(
+            dx_utils::checkD3d(d3d11Context->QueryInterface(__uuidof(ID3D11DeviceContext4),
+                                                            d3d11Context4.put_void()),
+                               "ID3D11DeviceContext::QueryInterface(ID3D11DeviceContext4)"),
+            CaptureError::InferenceInitializationFailed);
         if (!queryContext4Result) {
             return std::unexpected(queryContext4Result.error());
         }
@@ -280,24 +260,24 @@ class DmlImageProcessorInterop::Impl {
     std::expected<void, std::error_code> initializeD3d12AndDmlState() {
         winrt::com_ptr<IDXGIDevice> dxgiDevice;
         const auto queryDxgiDeviceResult =
-            toError(dx_utils::checkD3d(
-                        d3d11Device->QueryInterface(__uuidof(IDXGIDevice), dxgiDevice.put_void()),
-                        "ID3D11Device::QueryInterface(IDXGIDevice)"),
-                    CaptureError::InferenceInitializationFailed);
+            dx_utils::toError(dx_utils::checkD3d(d3d11Device->QueryInterface(__uuidof(IDXGIDevice),
+                                                                             dxgiDevice.put_void()),
+                                                 "ID3D11Device::QueryInterface(IDXGIDevice)"),
+                              CaptureError::InferenceInitializationFailed);
         if (!queryDxgiDeviceResult) {
             return std::unexpected(queryDxgiDeviceResult.error());
         }
 
         winrt::com_ptr<IDXGIAdapter> dxgiAdapter;
         const auto getAdapterResult =
-            toError(dx_utils::checkD3d(dxgiDevice->GetAdapter(dxgiAdapter.put()),
-                                       "IDXGIDevice::GetAdapter"),
-                    CaptureError::InferenceInitializationFailed);
+            dx_utils::toError(dx_utils::checkD3d(dxgiDevice->GetAdapter(dxgiAdapter.put()),
+                                                 "IDXGIDevice::GetAdapter"),
+                              CaptureError::InferenceInitializationFailed);
         if (!getAdapterResult) {
             return std::unexpected(getAdapterResult.error());
         }
 
-        const auto createD3d12DeviceResult = toError(
+        const auto createD3d12DeviceResult = dx_utils::toError(
             dx_utils::checkD3d(D3D12CreateDevice(dxgiAdapter.get(), D3D_FEATURE_LEVEL_12_0,
                                                  __uuidof(ID3D12Device), d3d12Device.put_void()),
                                "D3D12CreateDevice"),
@@ -311,7 +291,7 @@ class DmlImageProcessorInterop::Impl {
         queueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
         queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
         queueDesc.NodeMask = 0;
-        const auto createQueueResult = toError(
+        const auto createQueueResult = dx_utils::toError(
             dx_utils::checkD3d(d3d12Device->CreateCommandQueue(
                                    &queueDesc, __uuidof(ID3D12CommandQueue), d3d12Queue.put_void()),
                                "ID3D12Device::CreateCommandQueue"),
@@ -321,9 +301,9 @@ class DmlImageProcessorInterop::Impl {
         }
 
         directmlModule = LoadLibraryW(L"DirectML.dll");
-        const auto loadModuleResult =
-            toError(dx_utils::checkWin32(directmlModule != nullptr, "LoadLibraryW(DirectML.dll)"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto loadModuleResult = dx_utils::toError(
+            dx_utils::checkWin32(directmlModule != nullptr, "LoadLibraryW(DirectML.dll)"),
+            CaptureError::InferenceInitializationFailed);
         if (!loadModuleResult) {
             return std::unexpected(loadModuleResult.error());
         }
@@ -338,12 +318,12 @@ class DmlImageProcessorInterop::Impl {
             return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
         }
 
-        const auto createDmlDeviceResult =
-            toError(dx_utils::checkD3d(createDevice1(d3d12Device.get(), DML_CREATE_DEVICE_FLAG_NONE,
-                                                     DML_FEATURE_LEVEL_1_0, __uuidof(IDMLDevice),
-                                                     dmlDevice.put_void()),
-                                       "DMLCreateDevice1"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto createDmlDeviceResult = dx_utils::toError(
+            dx_utils::checkD3d(createDevice1(d3d12Device.get(), DML_CREATE_DEVICE_FLAG_NONE,
+                                             DML_FEATURE_LEVEL_1_0, __uuidof(IDMLDevice),
+                                             dmlDevice.put_void()),
+                               "DMLCreateDevice1"),
+            CaptureError::InferenceInitializationFailed);
         if (!createDmlDeviceResult) {
             return std::unexpected(createDmlDeviceResult.error());
         }
@@ -365,26 +345,26 @@ class DmlImageProcessorInterop::Impl {
         sharedInputDesc.MiscFlags =
             D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
 
-        const auto createSharedTextureResult =
-            toError(dx_utils::checkD3d(d3d11Device->CreateTexture2D(&sharedInputDesc, nullptr,
-                                                                    sharedInputTextureD3d11.put()),
-                                       "ID3D11Device::CreateTexture2D(sharedInputTexture)"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto createSharedTextureResult = dx_utils::toError(
+            dx_utils::checkD3d(d3d11Device->CreateTexture2D(&sharedInputDesc, nullptr,
+                                                            sharedInputTextureD3d11.put()),
+                               "ID3D11Device::CreateTexture2D(sharedInputTexture)"),
+            CaptureError::InferenceInitializationFailed);
         if (!createSharedTextureResult) {
             return std::unexpected(createSharedTextureResult.error());
         }
 
         winrt::com_ptr<IDXGIResource1> dxgiSharedResource;
-        const auto querySharedResourceResult =
-            toError(dx_utils::checkD3d(sharedInputTextureD3d11->QueryInterface(
-                                           __uuidof(IDXGIResource1), dxgiSharedResource.put_void()),
-                                       "ID3D11Texture2D::QueryInterface(IDXGIResource1)"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto querySharedResourceResult = dx_utils::toError(
+            dx_utils::checkD3d(sharedInputTextureD3d11->QueryInterface(
+                                   __uuidof(IDXGIResource1), dxgiSharedResource.put_void()),
+                               "ID3D11Texture2D::QueryInterface(IDXGIResource1)"),
+            CaptureError::InferenceInitializationFailed);
         if (!querySharedResourceResult) {
             return std::unexpected(querySharedResourceResult.error());
         }
 
-        const auto createSharedTextureHandleResult = toError(
+        const auto createSharedTextureHandleResult = dx_utils::toError(
             dx_utils::checkD3d(dxgiSharedResource->CreateSharedHandle(
                                    nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE,
                                    nullptr, sharedTextureHandle.put()),
@@ -394,12 +374,12 @@ class DmlImageProcessorInterop::Impl {
             return std::unexpected(createSharedTextureHandleResult.error());
         }
 
-        const auto openSharedTextureResult =
-            toError(dx_utils::checkD3d(d3d12Device->OpenSharedHandle(
-                                           sharedTextureHandle.get(), __uuidof(ID3D12Resource),
-                                           sharedInputTextureD3d12.put_void()),
-                                       "ID3D12Device::OpenSharedHandle(inputTexture)"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto openSharedTextureResult = dx_utils::toError(
+            dx_utils::checkD3d(d3d12Device->OpenSharedHandle(sharedTextureHandle.get(),
+                                                             __uuidof(ID3D12Resource),
+                                                             sharedInputTextureD3d12.put_void()),
+                               "ID3D12Device::OpenSharedHandle(inputTexture)"),
+            CaptureError::InferenceInitializationFailed);
         if (!openSharedTextureResult) {
             return std::unexpected(openSharedTextureResult.error());
         }
@@ -408,32 +388,32 @@ class DmlImageProcessorInterop::Impl {
     }
 
     std::expected<void, std::error_code> initializeInteropFenceState() {
-        const auto createInteropFenceResult =
-            toError(dx_utils::checkD3d(d3d12Device->CreateFence(0, D3D12_FENCE_FLAG_SHARED,
-                                                                __uuidof(ID3D12Fence),
-                                                                interopFenceD3d12.put_void()),
-                                       "ID3D12Device::CreateFence(sharedInterop)"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto createInteropFenceResult = dx_utils::toError(
+            dx_utils::checkD3d(d3d12Device->CreateFence(0, D3D12_FENCE_FLAG_SHARED,
+                                                        __uuidof(ID3D12Fence),
+                                                        interopFenceD3d12.put_void()),
+                               "ID3D12Device::CreateFence(sharedInterop)"),
+            CaptureError::InferenceInitializationFailed);
         if (!createInteropFenceResult) {
             return std::unexpected(createInteropFenceResult.error());
         }
 
-        const auto createInteropFenceHandleResult =
-            toError(dx_utils::checkD3d(d3d12Device->CreateSharedHandle(
-                                           interopFenceD3d12.get(), nullptr, GENERIC_ALL, nullptr,
-                                           interopFenceHandle.put()),
-                                       "ID3D12Device::CreateSharedHandle(sharedInteropFence)"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto createInteropFenceHandleResult = dx_utils::toError(
+            dx_utils::checkD3d(d3d12Device->CreateSharedHandle(interopFenceD3d12.get(), nullptr,
+                                                               GENERIC_ALL, nullptr,
+                                                               interopFenceHandle.put()),
+                               "ID3D12Device::CreateSharedHandle(sharedInteropFence)"),
+            CaptureError::InferenceInitializationFailed);
         if (!createInteropFenceHandleResult) {
             return std::unexpected(createInteropFenceHandleResult.error());
         }
 
-        const auto openInteropFenceResult =
-            toError(dx_utils::checkD3d(d3d11Device5->OpenSharedFence(interopFenceHandle.get(),
-                                                                     __uuidof(ID3D11Fence),
-                                                                     interopFenceD3d11.put_void()),
-                                       "ID3D11Device5::OpenSharedFence(sharedInteropFence)"),
-                    CaptureError::InferenceInitializationFailed);
+        const auto openInteropFenceResult = dx_utils::toError(
+            dx_utils::checkD3d(d3d11Device5->OpenSharedFence(interopFenceHandle.get(),
+                                                             __uuidof(ID3D11Fence),
+                                                             interopFenceD3d11.put_void()),
+                               "ID3D11Device5::OpenSharedFence(sharedInteropFence)"),
+            CaptureError::InferenceInitializationFailed);
         if (!openInteropFenceResult) {
             return std::unexpected(openInteropFenceResult.error());
         }
