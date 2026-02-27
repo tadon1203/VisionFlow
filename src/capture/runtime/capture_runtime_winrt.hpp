@@ -16,7 +16,7 @@ class WinrtCaptureSource;
 
 class WinrtCaptureRuntime final : public ICaptureRuntime {
   public:
-    explicit WinrtCaptureRuntime(std::shared_ptr<IProfiler> profiler = nullptr);
+    explicit WinrtCaptureRuntime(IProfiler* profiler = nullptr);
     WinrtCaptureRuntime(const WinrtCaptureRuntime&) = delete;
     WinrtCaptureRuntime(WinrtCaptureRuntime&&) = delete;
     WinrtCaptureRuntime& operator=(const WinrtCaptureRuntime&) = delete;

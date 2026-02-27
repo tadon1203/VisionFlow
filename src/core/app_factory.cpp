@@ -19,21 +19,21 @@ struct AppComposition {
     std::unique_ptr<ICaptureRuntime> captureRuntime;
     std::unique_ptr<IInferenceProcessor> inferenceProcessor;
     std::unique_ptr<InferenceResultStore> resultStore;
-    std::shared_ptr<IProfiler> profiler;
+    std::unique_ptr<IProfiler> profiler;
 };
 
 AppComposition createAppComposition(const VisionFlowConfig& config) {
     AppComposition composition;
 
-    std::shared_ptr<IProfiler> profiler;
+    std::unique_ptr<IProfiler> profiler;
     if (config.profiler.enabled) {
-        profiler = std::make_shared<Profiler>(config.profiler);
+        profiler = std::make_unique<Profiler>(config.profiler);
     }
 
-    auto captureRuntime = std::make_unique<WinrtCaptureRuntime>(profiler);
+    auto captureRuntime = std::make_unique<WinrtCaptureRuntime>(profiler.get());
     auto concreteStore = std::make_unique<InferenceResultStore>();
     auto processorResult =
-        createWinrtInferenceProcessor(config.inference, *concreteStore, profiler);
+        createWinrtInferenceProcessor(config.inference, *concreteStore, profiler.get());
     if (!processorResult) {
         VF_ERROR("Failed to create inference processor: {}", processorResult.error().message());
         return {};

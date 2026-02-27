@@ -40,8 +40,7 @@ class DmlImageProcessor {
         std::size_t outputBytes = 0;
     };
 
-    explicit DmlImageProcessor(OnnxDmlSession& session,
-                               std::shared_ptr<IProfiler> profiler = nullptr);
+    explicit DmlImageProcessor(OnnxDmlSession& session, IProfiler* profiler = nullptr);
     DmlImageProcessor(const DmlImageProcessor&) = delete;
     DmlImageProcessor(DmlImageProcessor&&) = delete;
     DmlImageProcessor& operator=(const DmlImageProcessor&) = delete;

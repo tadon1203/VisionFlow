@@ -14,8 +14,8 @@
 
 namespace vf {
 
-WinrtCaptureRuntime::WinrtCaptureRuntime(std::shared_ptr<IProfiler> profiler)
-    : source(std::make_unique<WinrtCaptureSource>(std::move(profiler))),
+WinrtCaptureRuntime::WinrtCaptureRuntime(IProfiler* profiler)
+    : source(std::make_unique<WinrtCaptureSource>(profiler)),
       runtimeState(std::make_unique<CaptureRuntimeStateMachine>()) {}
 
 WinrtCaptureRuntime::~WinrtCaptureRuntime() = default;

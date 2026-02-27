@@ -52,11 +52,11 @@ runCaptureStartStep(Fn&& stepFn, std::string_view stepName, CaptureError excepti
 } // namespace
 #endif
 
-WinrtCaptureSource::WinrtCaptureSource(std::shared_ptr<IProfiler> profiler)
+WinrtCaptureSource::WinrtCaptureSource(IProfiler* profiler)
 #ifdef _WIN32
-    : profiler(std::move(profiler)), session(std::make_unique<WinrtCaptureSession>())
+    : profiler(profiler), session(std::make_unique<WinrtCaptureSession>())
 #else
-    : profiler(std::move(profiler))
+    : profiler(profiler)
 #endif
 {
 }

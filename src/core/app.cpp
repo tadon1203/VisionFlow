@@ -43,7 +43,7 @@ App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
 App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
          CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
          std::unique_ptr<IInferenceProcessor> inferenceProcessor,
-         std::unique_ptr<InferenceResultStore> resultStore, std::shared_ptr<IProfiler> profiler)
+         std::unique_ptr<InferenceResultStore> resultStore, std::unique_ptr<IProfiler> profiler)
     : appConfig(appConfig), captureConfig(captureConfig),
       mouseController(std::move(mouseController)), captureRuntime(std::move(captureRuntime)),
       inferenceProcessor(std::move(inferenceProcessor)), resultStore(std::move(resultStore)),

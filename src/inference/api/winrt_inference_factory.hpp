@@ -14,7 +14,6 @@ class IInferenceProcessor;
 
 [[nodiscard]] std::expected<std::unique_ptr<IInferenceProcessor>, std::error_code>
 createWinrtInferenceProcessor(const InferenceConfig& inferenceConfig,
-                              InferenceResultStore& resultStore,
-                              std::shared_ptr<IProfiler> profiler = nullptr);
+                              InferenceResultStore& resultStore, IProfiler* profiler = nullptr);
 
 } // namespace vf

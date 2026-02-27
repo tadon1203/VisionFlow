@@ -23,8 +23,7 @@ namespace vf {
 #ifdef _WIN32
 class DmlImageProcessor::Impl {
   public:
-    Impl(OnnxDmlSession& session, std::shared_ptr<IProfiler> profiler)
-        : session(session), profiler(std::move(profiler)) {}
+    Impl(OnnxDmlSession& session, IProfiler* profiler) : session(session), profiler(profiler) {}
 
     std::expected<InitializeResult, std::error_code> initialize(ID3D11Texture2D* sourceTexture) {
         if (sourceTexture == nullptr) {
@@ -198,15 +197,15 @@ class DmlImageProcessor::Impl {
     }
 
     OnnxDmlSession& session;
-    std::shared_ptr<IProfiler> profiler;
+    IProfiler* profiler = nullptr;
     std::mutex mutex;
     bool initialized = false;
     DmlImageProcessorInterop interop;
     DmlImageProcessorPreprocess preprocess;
 };
 
-DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session, std::shared_ptr<IProfiler> profiler)
-    : impl(std::make_unique<Impl>(session, std::move(profiler))) {}
+DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session, IProfiler* profiler)
+    : impl(std::make_unique<Impl>(session, profiler)) {}
 
 DmlImageProcessor::~DmlImageProcessor() { impl->shutdown(); }
 
@@ -226,14 +225,14 @@ void DmlImageProcessor::shutdown() { impl->shutdown(); }
 
 class DmlImageProcessor::Impl {
   public:
-    Impl(OnnxDmlSession& session, std::shared_ptr<IProfiler> profiler) {
+    Impl(OnnxDmlSession& session, IProfiler* profiler) {
         static_cast<void>(session);
         static_cast<void>(profiler);
     }
 };
 
-DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session, std::shared_ptr<IProfiler> profiler)
-    : impl(std::make_unique<Impl>(session, std::move(profiler))) {}
+DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session, IProfiler* profiler)
+    : impl(std::make_unique<Impl>(session, profiler)) {}
 
 DmlImageProcessor::~DmlImageProcessor() = default;
 

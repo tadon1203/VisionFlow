@@ -24,7 +24,7 @@ class WinrtCaptureSession;
 
 class WinrtCaptureSource {
   public:
-    explicit WinrtCaptureSource(std::shared_ptr<IProfiler> profiler = nullptr);
+    explicit WinrtCaptureSource(IProfiler* profiler = nullptr);
     WinrtCaptureSource(const WinrtCaptureSource&) = delete;
     WinrtCaptureSource(WinrtCaptureSource&&) = delete;
     WinrtCaptureSource& operator=(const WinrtCaptureSource&) = delete;
@@ -65,7 +65,7 @@ class WinrtCaptureSource {
     CaptureState state = CaptureState::Idle;
     IWinrtFrameSink* frameSink = nullptr;
     std::error_code lastError;
-    std::shared_ptr<IProfiler> profiler;
+    IProfiler* profiler = nullptr;
 
 #ifdef _WIN32
     std::unique_ptr<WinrtCaptureSession> session;

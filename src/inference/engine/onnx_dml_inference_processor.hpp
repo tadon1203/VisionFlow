@@ -32,7 +32,7 @@ class OnnxDmlInferenceProcessor final : public IInferenceProcessor, public IWinr
                               std::unique_ptr<OnnxDmlSession> session,
                               std::unique_ptr<DmlImageProcessor> dmlImageProcessor,
                               std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker,
-                              std::shared_ptr<IProfiler> profiler = nullptr);
+                              IProfiler* profiler = nullptr);
     OnnxDmlInferenceProcessor(const OnnxDmlInferenceProcessor&) = delete;
     OnnxDmlInferenceProcessor(OnnxDmlInferenceProcessor&&) = delete;
     OnnxDmlInferenceProcessor& operator=(const OnnxDmlInferenceProcessor&) = delete;
@@ -69,7 +69,7 @@ class OnnxDmlInferenceProcessor final : public IInferenceProcessor, public IWinr
     std::unique_ptr<OnnxDmlSession> session;
     std::unique_ptr<DmlImageProcessor> dmlImageProcessor;
     std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker;
-    std::shared_ptr<IProfiler> profiler;
+    IProfiler* profiler = nullptr;
     std::jthread workerThread;
 };
 

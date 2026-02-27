@@ -18,8 +18,7 @@ namespace vf {
 
 std::expected<std::unique_ptr<IInferenceProcessor>, std::error_code>
 createWinrtInferenceProcessor(const InferenceConfig& inferenceConfig,
-                              InferenceResultStore& resultStore,
-                              std::shared_ptr<IProfiler> profiler) {
+                              InferenceResultStore& resultStore, IProfiler* profiler) {
 #if defined(_WIN32) && defined(VF_HAS_ONNXRUNTIME_DML) && VF_HAS_ONNXRUNTIME_DML
     try {
         auto sequencer = std::make_unique<FrameSequencer<InferenceFrame>>();
@@ -31,7 +30,7 @@ createWinrtInferenceProcessor(const InferenceConfig& inferenceConfig,
         std::unique_ptr<IInferenceProcessor> processor =
             std::make_unique<OnnxDmlInferenceProcessor>(
                 inferenceConfig, std::move(sequencer), &resultStore, std::move(dmlSession),
-                std::move(imageProcessor), std::move(worker), std::move(profiler));
+                std::move(imageProcessor), std::move(worker), profiler);
 
         return processor;
     } catch (...) {

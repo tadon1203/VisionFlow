@@ -3,7 +3,6 @@
 #include <chrono>
 #include <expected>
 #include <functional>
-#include <memory>
 #include <stop_token>
 #include <string_view>
 #include <system_error>
@@ -25,11 +24,9 @@ template <typename TFrame> class DmlInferenceWorker {
 
     DmlInferenceWorker(FrameSequencer<TFrame>* frameSequencer, OnnxDmlSession* session,
                        DmlImageProcessor* dmlImageProcessor, InferenceResultStore* resultStore,
-                       std::shared_ptr<IProfiler> profiler = nullptr,
-                       FaultHandler faultHandler = {})
+                       IProfiler* profiler = nullptr, FaultHandler faultHandler = {})
         : frameSequencer(frameSequencer), session(session), dmlImageProcessor(dmlImageProcessor),
-          resultStore(resultStore), profiler(std::move(profiler)),
-          faultHandler(std::move(faultHandler)) {}
+          resultStore(resultStore), profiler(profiler), faultHandler(std::move(faultHandler)) {}
 
     void setFaultHandler(FaultHandler nextFaultHandler) {
         faultHandler = std::move(nextFaultHandler);
@@ -139,7 +136,7 @@ template <typename TFrame> class DmlInferenceWorker {
     OnnxDmlSession* session;
     DmlImageProcessor* dmlImageProcessor;
     InferenceResultStore* resultStore;
-    std::shared_ptr<IProfiler> profiler;
+    IProfiler* profiler;
     FaultHandler faultHandler;
 };
 
