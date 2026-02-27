@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <system_error>
 
 #include "VisionFlow/core/i_profiler.hpp"
@@ -40,6 +41,11 @@ class DmlImageProcessor {
         std::size_t outputBytes = 0;
     };
 
+    enum class EnqueueStatus : std::uint8_t {
+        Submitted,
+        SkippedBusy,
+    };
+
     explicit DmlImageProcessor(OnnxDmlSession& session, IProfiler* profiler = nullptr);
     DmlImageProcessor(const DmlImageProcessor&) = delete;
     DmlImageProcessor(DmlImageProcessor&&) = delete;
@@ -50,12 +56,16 @@ class DmlImageProcessor {
 #ifdef _WIN32
     [[nodiscard]] std::expected<InitializeResult, std::error_code>
     initialize(ID3D11Texture2D* sourceTexture);
-    [[nodiscard]] std::expected<DispatchResult, std::error_code>
-    dispatch(ID3D11Texture2D* frameTexture, std::uint64_t fenceValue);
+    [[nodiscard]] std::expected<EnqueueStatus, std::error_code>
+    enqueuePreprocess(ID3D11Texture2D* frameTexture, std::uint64_t fenceValue);
+    [[nodiscard]] std::expected<std::optional<DispatchResult>, std::error_code>
+    tryCollectPreprocessResult();
 #else
     [[nodiscard]] std::expected<InitializeResult, std::error_code> initialize(void* sourceTexture);
-    [[nodiscard]] std::expected<DispatchResult, std::error_code> dispatch(void* frameTexture,
-                                                                          std::uint64_t fenceValue);
+    [[nodiscard]] std::expected<EnqueueStatus, std::error_code>
+    enqueuePreprocess(void* frameTexture, std::uint64_t fenceValue);
+    [[nodiscard]] std::expected<std::optional<DispatchResult>, std::error_code>
+    tryCollectPreprocessResult();
 #endif
 
     void shutdown();

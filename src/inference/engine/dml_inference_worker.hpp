@@ -1,8 +1,10 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <expected>
 #include <functional>
+#include <optional>
 #include <stop_token>
 #include <string_view>
 #include <system_error>
@@ -43,6 +45,60 @@ template <typename TFrame> class DmlInferenceWorker {
         }
 
         while (!stopToken.stop_requested()) {
+            if (inFlightFrameTimestamp100ns.has_value()) {
+                if (profiler != nullptr) {
+                    profiler->recordEvent(ProfileStage::InferenceCollect);
+                }
+                const auto collectResult = [this]() {
+                    const auto startedAt = std::chrono::steady_clock::now();
+                    const auto result = dmlImageProcessor->tryCollectPreprocessResult();
+                    if (profiler != nullptr) {
+                        const auto endedAt = std::chrono::steady_clock::now();
+                        profiler->recordCpuUs(
+                            ProfileStage::InferenceCollect,
+                            static_cast<std::uint64_t>(
+                                std::chrono::duration_cast<std::chrono::microseconds>(endedAt -
+                                                                                      startedAt)
+                                    .count()));
+                    }
+                    return result;
+                }();
+                if (!collectResult) {
+                    if (faultHandler) {
+                        faultHandler("OnnxDmlInferenceProcessor preprocess collect failed",
+                                     collectResult.error());
+                    }
+                    return;
+                }
+                if (collectResult->has_value()) {
+                    const auto inferenceResult = [this, &collectResult]() {
+                        const auto startedAt = std::chrono::steady_clock::now();
+                        const auto result = session->runWithGpuInput(
+                            *inFlightFrameTimestamp100ns, collectResult->value().outputResource,
+                            collectResult->value().outputBytes);
+                        if (profiler != nullptr) {
+                            const auto endedAt = std::chrono::steady_clock::now();
+                            profiler->recordCpuUs(
+                                ProfileStage::InferenceRun,
+                                static_cast<std::uint64_t>(
+                                    std::chrono::duration_cast<std::chrono::microseconds>(endedAt -
+                                                                                          startedAt)
+                                        .count()));
+                        }
+                        return result;
+                    }();
+                    if (!inferenceResult) {
+                        VF_WARN("OnnxDmlInferenceProcessor inference failed: {}",
+                                inferenceResult.error().message());
+                    } else {
+                        resultStore->publish(inferenceResult.value());
+                    }
+                    inFlightFrameTimestamp100ns.reset();
+                } else if (profiler != nullptr) {
+                    profiler->recordEvent(ProfileStage::InferenceCollectMiss);
+                }
+            }
+
             TFrame frame;
             if (!frameSequencer->waitAndTakeLatest(stopToken, frame)) {
                 continue;
@@ -56,21 +112,19 @@ template <typename TFrame> class DmlInferenceWorker {
                 return;
             }
 
-            const std::expected<DmlImageProcessor::InitializeResult, std::error_code>
-                initializeResult = [this, &frame]() {
-                    const auto startedAt = std::chrono::steady_clock::now();
-                    const auto result = dmlImageProcessor->initialize(frame.texture.get());
-                    if (profiler != nullptr) {
-                        const auto endedAt = std::chrono::steady_clock::now();
-                        profiler->recordCpuUs(
-                            ProfileStage::InferenceInitialize,
-                            static_cast<std::uint64_t>(
-                                std::chrono::duration_cast<std::chrono::microseconds>(endedAt -
-                                                                                      startedAt)
-                                    .count()));
-                    }
-                    return result;
-                }();
+            const auto initializeResult = [this, &frame]() {
+                const auto startedAt = std::chrono::steady_clock::now();
+                const auto result = dmlImageProcessor->initialize(frame.texture.get());
+                if (profiler != nullptr) {
+                    const auto endedAt = std::chrono::steady_clock::now();
+                    profiler->recordCpuUs(ProfileStage::InferenceInitialize,
+                                          static_cast<std::uint64_t>(
+                                              std::chrono::duration_cast<std::chrono::microseconds>(
+                                                  endedAt - startedAt)
+                                                  .count()));
+                }
+                return result;
+            }();
             if (!initializeResult) {
                 if (faultHandler) {
                     faultHandler("OnnxDmlInferenceProcessor GPU initialization failed",
@@ -79,55 +133,36 @@ template <typename TFrame> class DmlInferenceWorker {
                 return;
             }
 
-            const std::expected<DmlImageProcessor::DispatchResult, std::error_code> dispatchResult =
-                [this, &frame]() {
-                    const auto startedAt = std::chrono::steady_clock::now();
-                    const auto result =
-                        dmlImageProcessor->dispatch(frame.texture.get(), frame.fenceValue);
-                    if (profiler != nullptr) {
-                        const auto endedAt = std::chrono::steady_clock::now();
-                        profiler->recordCpuUs(
-                            ProfileStage::InferencePreprocess,
-                            static_cast<std::uint64_t>(
-                                std::chrono::duration_cast<std::chrono::microseconds>(endedAt -
-                                                                                      startedAt)
-                                    .count()));
-                    }
-                    return result;
-                }();
-            if (!dispatchResult) {
+            const auto enqueueResult = [this, &frame]() {
+                if (profiler != nullptr) {
+                    profiler->recordEvent(ProfileStage::InferenceEnqueue);
+                }
+                const auto startedAt = std::chrono::steady_clock::now();
+                const auto result =
+                    dmlImageProcessor->enqueuePreprocess(frame.texture.get(), frame.fenceValue);
+                if (profiler != nullptr) {
+                    const auto endedAt = std::chrono::steady_clock::now();
+                    profiler->recordCpuUs(ProfileStage::InferenceEnqueue,
+                                          static_cast<std::uint64_t>(
+                                              std::chrono::duration_cast<std::chrono::microseconds>(
+                                                  endedAt - startedAt)
+                                                  .count()));
+                }
+                return result;
+            }();
+            if (!enqueueResult) {
                 if (faultHandler) {
-                    faultHandler("OnnxDmlInferenceProcessor preprocess failed",
-                                 dispatchResult.error());
+                    faultHandler("OnnxDmlInferenceProcessor preprocess enqueue failed",
+                                 enqueueResult.error());
                 }
                 return;
             }
 
-            const std::expected<InferenceResult, std::error_code> inferenceResult =
-                [this, &frame, &dispatchResult]() {
-                    const auto startedAt = std::chrono::steady_clock::now();
-                    const auto result = session->runWithGpuInput(frame.info.systemRelativeTime100ns,
-                                                                 dispatchResult->outputResource,
-                                                                 dispatchResult->outputBytes);
-                    if (profiler != nullptr) {
-                        const auto endedAt = std::chrono::steady_clock::now();
-                        profiler->recordCpuUs(
-                            ProfileStage::InferenceRun,
-                            static_cast<std::uint64_t>(
-                                std::chrono::duration_cast<std::chrono::microseconds>(endedAt -
-                                                                                      startedAt)
-                                    .count()));
-                    }
-                    return result;
-                }();
-
-            if (!inferenceResult) {
-                VF_WARN("OnnxDmlInferenceProcessor inference failed: {}",
-                        inferenceResult.error().message());
-                continue;
+            if (*enqueueResult == DmlImageProcessor::EnqueueStatus::Submitted) {
+                inFlightFrameTimestamp100ns = frame.info.systemRelativeTime100ns;
+            } else if (profiler != nullptr) {
+                profiler->recordEvent(ProfileStage::InferenceEnqueueSkipped);
             }
-
-            resultStore->publish(inferenceResult.value());
         }
     }
 
@@ -138,6 +173,7 @@ template <typename TFrame> class DmlInferenceWorker {
     InferenceResultStore* resultStore;
     IProfiler* profiler;
     FaultHandler faultHandler;
+    std::optional<std::int64_t> inFlightFrameTimestamp100ns;
 };
 
 } // namespace vf

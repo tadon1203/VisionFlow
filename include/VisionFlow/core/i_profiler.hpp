@@ -14,6 +14,10 @@ enum class ProfileStage : std::uint8_t {
     CaptureFrameArrived,
     CaptureFrameForward,
     InferenceInitialize,
+    InferenceEnqueue,
+    InferenceCollect,
+    InferenceCollectMiss,
+    InferenceEnqueueSkipped,
     InferencePreprocess,
     InferenceRun,
     GpuPreprocess,
@@ -26,6 +30,7 @@ class IProfiler {
 
     virtual void recordCpuUs(ProfileStage stage, std::uint64_t microseconds) = 0;
     virtual void recordGpuUs(ProfileStage stage, std::uint64_t microseconds) = 0;
+    virtual void recordEvent(ProfileStage stage, std::uint64_t count = 1) = 0;
     virtual void maybeReport(std::chrono::steady_clock::time_point now) = 0;
     virtual void flushReport(std::chrono::steady_clock::time_point now) = 0;
 };

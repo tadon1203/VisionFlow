@@ -33,6 +33,14 @@ constexpr std::string_view stageName(ProfileStage stage) {
         return "capture.frame_forward";
     case ProfileStage::InferenceInitialize:
         return "inference.initialize";
+    case ProfileStage::InferenceEnqueue:
+        return "inference.enqueue";
+    case ProfileStage::InferenceCollect:
+        return "inference.collect";
+    case ProfileStage::InferenceCollectMiss:
+        return "inference.collect_miss";
+    case ProfileStage::InferenceEnqueueSkipped:
+        return "inference.enqueue_skipped";
     case ProfileStage::InferencePreprocess:
         return "inference.preprocess";
     case ProfileStage::InferenceRun:
@@ -56,6 +64,15 @@ void Profiler::recordCpuUs(ProfileStage stage, std::uint64_t microseconds) {
 
 void Profiler::recordGpuUs(ProfileStage stage, std::uint64_t microseconds) {
     record(stage, microseconds);
+}
+
+void Profiler::recordEvent(ProfileStage stage, std::uint64_t count) {
+    const std::size_t index = static_cast<std::size_t>(stage);
+    if (index >= kStageCount) {
+        return;
+    }
+
+    eventCounters[index].count.fetch_add(count, std::memory_order_relaxed);
 }
 
 void Profiler::maybeReport(std::chrono::steady_clock::time_point now) {
@@ -127,6 +144,10 @@ std::string Profiler::buildReportLine(std::chrono::steady_clock::time_point now,
         ProfileStage::CaptureFrameArrived,
         ProfileStage::CaptureFrameForward,
         ProfileStage::InferenceInitialize,
+        ProfileStage::InferenceEnqueue,
+        ProfileStage::InferenceCollect,
+        ProfileStage::InferenceCollectMiss,
+        ProfileStage::InferenceEnqueueSkipped,
         ProfileStage::InferencePreprocess,
         ProfileStage::InferenceRun,
         ProfileStage::GpuPreprocess,
@@ -134,13 +155,22 @@ std::string Profiler::buildReportLine(std::chrono::steady_clock::time_point now,
 
     for (const ProfileStage stage : kStages) {
         const StageSnapshot snapshot = snapshotAndReset(stage);
-        if (!includeEmpty && snapshot.count == 0) {
+        const std::uint64_t events = snapshotEventsAndReset(stage);
+        if (!includeEmpty && snapshot.count == 0 && events == 0) {
             continue;
         }
 
-        const std::uint64_t averageUs = snapshot.count == 0 ? 0 : snapshot.sumUs / snapshot.count;
-        line.append(std::format(" | {} count={} avg={}us max={}us", stageName(stage),
-                                snapshot.count, averageUs, snapshot.maxUs));
+        if (snapshot.count > 0) {
+            const std::uint64_t averageUs = snapshot.sumUs / snapshot.count;
+            line.append(std::format(" | {} count={} avg={}us max={}us", stageName(stage),
+                                    snapshot.count, averageUs, snapshot.maxUs));
+        } else {
+            line.append(std::format(" | {}", stageName(stage)));
+        }
+
+        if (events > 0) {
+            line.append(std::format(" events={}", events));
+        }
         hasAnyStage = true;
     }
 
@@ -159,6 +189,11 @@ Profiler::StageSnapshot Profiler::snapshotAndReset(ProfileStage stage) {
     snapshot.sumUs = counters.sumUs.exchange(0, std::memory_order_relaxed);
     snapshot.maxUs = counters.maxUs.exchange(0, std::memory_order_relaxed);
     return snapshot;
+}
+
+std::uint64_t Profiler::snapshotEventsAndReset(ProfileStage stage) {
+    const std::size_t index = static_cast<std::size_t>(stage);
+    return eventCounters[index].count.exchange(0, std::memory_order_relaxed);
 }
 
 } // namespace vf
