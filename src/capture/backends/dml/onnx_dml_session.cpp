@@ -1,4 +1,4 @@
-#include "capture/onnx_dml_session.hpp"
+#include "capture/backends/dml/onnx_dml_session.hpp"
 
 #include <cstddef>
 #include <exception>
@@ -77,11 +77,11 @@ OnnxDmlSession::createModelMetadata(std::string inputName, std::vector<int64_t> 
         }
     }
 
-    if (inputShape[0] != 1) {
+    if (inputShape.at(0) != 1) {
         return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
     }
 
-    if (inputShape[1] != 3) {
+    if (inputShape.at(1) != 3) {
         return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
     }
 
@@ -93,23 +93,29 @@ OnnxDmlSession::createModelMetadata(std::string inputName, std::vector<int64_t> 
     metadata.inputName = std::move(inputName);
     metadata.outputNames = std::move(outputNames);
     metadata.inputShape = std::move(inputShape);
-    metadata.inputChannels = static_cast<std::uint32_t>(metadata.inputShape[1]);
-    metadata.inputHeight = static_cast<std::uint32_t>(metadata.inputShape[2]);
-    metadata.inputWidth = static_cast<std::uint32_t>(metadata.inputShape[3]);
+    const auto batch = static_cast<std::size_t>(metadata.inputShape.at(0));
+    const auto channels = static_cast<std::size_t>(metadata.inputShape.at(1));
+    const auto height = static_cast<std::size_t>(metadata.inputShape.at(2));
+    const auto width = static_cast<std::size_t>(metadata.inputShape.at(3));
 
-    metadata.inputElementCount = static_cast<std::size_t>(metadata.inputShape[0]) *
-                                 static_cast<std::size_t>(metadata.inputShape[1]) *
-                                 static_cast<std::size_t>(metadata.inputShape[2]) *
-                                 static_cast<std::size_t>(metadata.inputShape[3]);
+    metadata.inputChannels = static_cast<std::uint32_t>(channels);
+    metadata.inputHeight = static_cast<std::uint32_t>(height);
+    metadata.inputWidth = static_cast<std::uint32_t>(width);
+    metadata.inputElementCount = batch * channels * height * width;
     metadata.inputTensorBytes = metadata.inputElementCount * sizeof(float);
 
     return metadata;
 }
 
-OnnxDmlSession::~OnnxDmlSession() {
-    const std::expected<void, std::error_code> result = stop();
-    if (!result) {
-        VF_WARN("OnnxDmlSession stop during destruction failed: {}", result.error().message());
+OnnxDmlSession::~OnnxDmlSession() noexcept {
+    try {
+        const std::expected<void, std::error_code> stopResult = stop();
+        if (!stopResult) {
+            VF_WARN("OnnxDmlSession stop during destruction failed: {}",
+                    stopResult.error().message());
+        }
+    } catch (...) {
+        VF_WARN("OnnxDmlSession stop during destruction failed with unknown exception");
     }
 }
 
@@ -124,9 +130,20 @@ const OnnxDmlSession::ModelMetadata& OnnxDmlSession::metadata() const { return m
 
 #if defined(_WIN32) && defined(VF_HAS_ONNXRUNTIME_DML) && VF_HAS_ONNXRUNTIME_DML
 std::expected<void, std::error_code> OnnxDmlSession::start(IDMLDevice* dmlDevice,
-                                                           ID3D12CommandQueue* commandQueue) {
+                                                           ID3D12CommandQueue* commandQueue,
+                                                           std::uint64_t interopGeneration) {
     if (running) {
-        return {};
+        const bool sameDevice = this->dmlDevice.get() == dmlDevice;
+        const bool sameQueue = d3d12Queue.get() == commandQueue;
+        const bool sameGeneration = boundInteropGeneration == interopGeneration;
+        if (sameDevice && sameQueue && sameGeneration) {
+            return {};
+        }
+
+        const auto stopResult = stop();
+        if (!stopResult) {
+            return std::unexpected(stopResult.error());
+        }
     }
     if (dmlDevice == nullptr || commandQueue == nullptr) {
         return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
@@ -171,6 +188,7 @@ std::expected<void, std::error_code> OnnxDmlSession::start(IDMLDevice* dmlDevice
         cpuMemoryInfo = std::make_unique<Ort::MemoryInfo>(
             Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault));
 
+        boundInteropGeneration = interopGeneration;
         running = true;
 
         VF_INFO("OnnxDmlSession started");
@@ -194,7 +212,21 @@ std::expected<void, std::error_code> OnnxDmlSession::start(IDMLDevice* dmlDevice
         return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
     }
 }
-#elif defined(_WIN32)
+
+std::expected<void, std::error_code> OnnxDmlSession::start(IDMLDevice* dmlDevice,
+                                                           ID3D12CommandQueue* commandQueue) {
+    return start(dmlDevice, commandQueue, 0);
+}
+#elif defined(_WIN32) // NOLINT(readability-use-concise-preprocessor-directives)
+std::expected<void, std::error_code> OnnxDmlSession::start(IDMLDevice* dmlDevice,
+                                                           ID3D12CommandQueue* commandQueue,
+                                                           std::uint64_t interopGeneration) {
+    static_cast<void>(interopGeneration);
+    static_cast<void>(dmlDevice);
+    static_cast<void>(commandQueue);
+    return std::unexpected(makeErrorCode(CaptureError::PlatformNotSupported));
+}
+
 std::expected<void, std::error_code> OnnxDmlSession::start(IDMLDevice* dmlDevice,
                                                            ID3D12CommandQueue* commandQueue) {
     static_cast<void>(dmlDevice);
@@ -202,6 +234,14 @@ std::expected<void, std::error_code> OnnxDmlSession::start(IDMLDevice* dmlDevice
     return std::unexpected(makeErrorCode(CaptureError::PlatformNotSupported));
 }
 #else
+std::expected<void, std::error_code> OnnxDmlSession::start(void* dmlDevice, void* commandQueue,
+                                                           std::uint64_t interopGeneration) {
+    static_cast<void>(interopGeneration);
+    static_cast<void>(dmlDevice);
+    static_cast<void>(commandQueue);
+    return std::unexpected(makeErrorCode(CaptureError::PlatformNotSupported));
+}
+
 std::expected<void, std::error_code> OnnxDmlSession::start(void* dmlDevice, void* commandQueue) {
     static_cast<void>(dmlDevice);
     static_cast<void>(commandQueue);
@@ -223,8 +263,8 @@ std::expected<void, std::error_code> OnnxDmlSession::stop() {
     }
 
     inputAllocation = nullptr;
-    inputBound = false;
-    inputResource = nullptr;
+    boundInputResource = nullptr;
+    boundInteropGeneration = 0;
     dmlDevice = nullptr;
     d3d12Device = nullptr;
     d3d12Queue = nullptr;
@@ -245,61 +285,38 @@ std::expected<void, std::error_code> OnnxDmlSession::stop() {
 
 #if defined(_WIN32) && defined(VF_HAS_ONNXRUNTIME_DML) && VF_HAS_ONNXRUNTIME_DML
 
-std::expected<void, std::error_code>
-OnnxDmlSession::initializeGpuInputFromResource(ID3D12Resource* resource,
-                                               std::size_t resourceBytes) {
+std::expected<InferenceResult, std::error_code>
+OnnxDmlSession::runWithGpuInput(std::int64_t frameTimestamp100ns, ID3D12Resource* resource,
+                                std::size_t resourceBytes) {
     if (!running || session == nullptr || d3d12Device == nullptr || dmlApi == nullptr) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+        return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
     }
     if (resource == nullptr) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceGpuInteropFailed));
+        return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
     }
 
     if (resourceBytes < modelMetadata.inputTensorBytes) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceGpuInteropFailed));
+        return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
     }
 
-    if (inputAllocation != nullptr) {
+    if (inputAllocation != nullptr && boundInputResource != resource) {
         OrtStatus* status = dmlApi->FreeGPUAllocation(inputAllocation);
         if (status != nullptr) {
             Ort::GetApi().ReleaseStatus(status);
         }
         inputAllocation = nullptr;
-        inputBound = false;
+        boundInputResource = nullptr;
     }
 
     try {
-        inputResource.copy_from(resource);
-        Ort::ThrowOnError(
-            dmlApi->CreateGPUAllocationFromD3DResource(inputResource.get(), &inputAllocation));
-        inputBound = true;
-        VF_INFO("OnnxDmlSession input is ready");
-        VF_DEBUG("OnnxDmlSession bound shared D3D12 input resource ({} bytes)",
-                 modelMetadata.inputTensorBytes);
-        return {};
-    } catch (const Ort::Exception& ex) {
-        VF_ERROR("OnnxDmlSession input binding failed with ORT exception: {}", ex.what());
-        return std::unexpected(makeErrorCode(CaptureError::InferenceGpuInteropFailed));
-    } catch (const winrt::hresult_error& ex) {
-        VF_ERROR("OnnxDmlSession input binding failed with WinRT exception: {} (HRESULT=0x{:08X})",
-                 winrt::to_string(ex.message()), static_cast<std::uint32_t>(ex.code().value));
-        return std::unexpected(makeErrorCode(CaptureError::InferenceGpuInteropFailed));
-    } catch (const std::exception& ex) {
-        VF_ERROR("OnnxDmlSession input binding failed with exception: {}", ex.what());
-        return std::unexpected(makeErrorCode(CaptureError::InferenceGpuInteropFailed));
-    } catch (...) {
-        VF_ERROR("OnnxDmlSession input binding failed with unknown exception");
-        return std::unexpected(makeErrorCode(CaptureError::InferenceGpuInteropFailed));
-    }
-}
+        if (inputAllocation == nullptr) {
+            Ort::ThrowOnError(
+                dmlApi->CreateGPUAllocationFromD3DResource(resource, &inputAllocation));
+            boundInputResource = resource;
+            VF_DEBUG("OnnxDmlSession bound D3D12 input resource ({} bytes)",
+                     modelMetadata.inputTensorBytes);
+        }
 
-std::expected<InferenceResult, std::error_code>
-OnnxDmlSession::runWithGpuInput(std::int64_t frameTimestamp100ns) {
-    if (!running || session == nullptr || !inputBound || inputAllocation == nullptr) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
-    }
-
-    try {
         Ort::Value inputTensor = Ort::Value::CreateTensor(
             *dmlMemoryInfo, inputAllocation, modelMetadata.inputTensorBytes,
             modelMetadata.inputShape.data(), modelMetadata.inputShape.size(),
@@ -326,7 +343,7 @@ OnnxDmlSession::runWithGpuInput(std::int64_t frameTimestamp100ns) {
         result.tensors.reserve(outputValues.size());
 
         for (std::size_t i = 0; i < outputValues.size(); ++i) {
-            Ort::Value& outputValue = outputValues[i];
+            Ort::Value& outputValue = outputValues.at(i);
             if (!outputValue.IsTensor()) {
                 return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
             }
@@ -337,7 +354,7 @@ OnnxDmlSession::runWithGpuInput(std::int64_t frameTimestamp100ns) {
             }
 
             InferenceTensor tensor;
-            tensor.name = modelMetadata.outputNames[i];
+            tensor.name = modelMetadata.outputNames.at(i);
             tensor.shape = tensorInfo.GetShape();
 
             const std::size_t elementCount = tensorInfo.GetElementCount();

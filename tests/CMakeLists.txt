@@ -1,5 +1,6 @@
 add_executable(VisionFlowUnitTests
     unit/capture/capture_error_test.cpp
+    unit/capture/frame_sequencer_test.cpp
     unit/capture/inference_result_store_test.cpp
     unit/capture/onnx_dml_session_test.cpp
     unit/core/app_test.cpp
@@ -8,8 +9,9 @@ add_executable(VisionFlowUnitTests
     unit/input/makcu_controller_test.cpp
     unit/input/mouse_error_test.cpp
     ../src/capture/capture_error.cpp
+    ../src/capture/frame_sequencer.cpp
     ../src/capture/inference_result_store.cpp
-    ../src/capture/onnx_dml_session.cpp
+    ../src/capture/backends/dml/onnx_dml_session.cpp
     ../src/core/app.cpp
     ../src/core/app_error.cpp
     ../src/core/config_error.cpp

@@ -8,7 +8,7 @@
 
 namespace vf {
 
-class ICaptureProcessor;
+class IWinrtFrameSink;
 class WinrtCaptureSource;
 
 class WinrtCaptureRuntime final : public ICaptureRuntime {
@@ -24,7 +24,7 @@ class WinrtCaptureRuntime final : public ICaptureRuntime {
     [[nodiscard]] std::expected<void, std::error_code> stop() override;
 
   private:
-    std::shared_ptr<ICaptureProcessor> processor;
+    std::shared_ptr<IWinrtFrameSink> processor;
     std::unique_ptr<WinrtCaptureSource> source;
 };
 

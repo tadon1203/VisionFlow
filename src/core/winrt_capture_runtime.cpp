@@ -4,10 +4,10 @@
 #include <memory>
 #include <system_error>
 
+#include "capture/backends/dml/onnx_dml_capture_processor.hpp"
 #include "capture/debug_capture_processor.hpp"
-#include "capture/i_capture_processor.hpp"
-#include "capture/onnx_dml_capture_processor.hpp"
-#include "capture/winrt_capture_source.hpp"
+#include "capture/winrt/i_winrt_frame_sink.hpp"
+#include "capture/winrt/winrt_capture_source.hpp"
 
 namespace vf {
 
@@ -20,7 +20,7 @@ WinrtCaptureRuntime::WinrtCaptureRuntime(const InferenceConfig& inferenceConfig)
       source(std::make_unique<WinrtCaptureSource>()) {
     static_cast<void>(inferenceConfig);
 #endif
-    source->setProcessor(processor);
+    source->setFrameSink(processor);
 }
 
 WinrtCaptureRuntime::~WinrtCaptureRuntime() = default;

@@ -3,7 +3,7 @@
 #include <mutex>
 #include <optional>
 
-#include "capture/inference_result.hpp"
+#include "capture/common/inference_result.hpp"
 
 namespace vf {
 

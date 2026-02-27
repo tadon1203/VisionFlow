@@ -1,4 +1,4 @@
-# VisionFlow Architecture (Core)
+#VisionFlow Architecture(Core)
 
 ## Purpose
 This document describes the core architecture of VisionFlow so contributors can reason about
@@ -40,7 +40,7 @@ main
     -> CaptureRuntime (interface)
       -> WinrtCaptureRuntime (implementation)
         -> WinrtCaptureSource
-          -> ICaptureProcessor (private src boundary)
+          -> IWinrtFrameSink (private src boundary)
             -> OnnxDmlCaptureProcessor
               -> OnnxDmlSession (DirectML + IO Binding)
     -> createMouseController()
@@ -56,7 +56,10 @@ main
 - `include/VisionFlow/capture/`: public capture contracts
 - `src/input/`: input domain orchestration and protocol behavior
 - `src/input/winrt_*`: WinRT-backed serial/device adapters (private boundary)
-- `src/capture/`: WinRT capture runtime and private processor boundary
+- `src/capture/common/`: capture-internal shared data types (`capture_frame_info`, `inference_result`)
+- `src/capture/backends/dml/`: DirectML/DX12 backend implementation details
+- `src/capture/winrt/`: WinRT capture source and sink boundary
+- `src/capture/`: capture orchestration and stores
 
 ## Core Components
 
@@ -117,10 +120,10 @@ main
 5. Start capture session
 6. Push each texture frame to capture processor
 7. Keep only the freshest frame in the processor and drop stale frames
-8. Create a shared D3D11 texture (`D3D11_RESOURCE_MISC_SHARED_NTHANDLE`) for frame handoff
-9. Open the shared texture on D3D12 and signal/wait a shared fence for D3D11 -> D3D12 ordering
-10. Run D3D12 compute preprocess (`BGRA -> RGB`, `NCHW`) into a D3D12 input buffer
-11. Bind the D3D12 input resource to ONNX Runtime DirectML (`DML1`) via IO Binding
+8. `OnnxDmlCaptureProcessor` forwards only the latest frame to `DmlImageProcessor`
+9. `DmlImageProcessor` delegates shared texture/fence bridging to `D3d11D3d12Interop`
+10. `DmlImageProcessor` delegates preprocess pipeline setup/recording to `ComputePipeline`
+11. `OnnxDmlSession` consumes that D3D12 buffer via ONNX Runtime DirectML (`DML1`) IO Binding
 
 ### Move Path
 1. `move(dx, dy)` writes pending command under lock
@@ -154,7 +157,10 @@ main
 - `src/core/*`: app lifecycle and logging implementations
 - `src/input/*`: input orchestration and protocol implementations
 - `src/input/winrt_*`: private WinRT serial/device adapters
-- `src/capture/*`: private capture abstractions and implementations
+- `src/capture/common/*`: private capture shared data contracts
+- `src/capture/backends/dml/*`: private DML backend components
+- `src/capture/winrt/*`: private WinRT capture components
+- `src/capture/*`: private capture orchestration and stores
 - `config/*`: runtime configuration inputs
 
 ## Extension Guidelines (Core)
