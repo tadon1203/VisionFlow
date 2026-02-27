@@ -17,13 +17,6 @@ enum class CaptureError : std::uint8_t {
     FramePoolInitializationFailed,
     SessionStartFailed,
     SessionStopFailed,
-    InferenceInitializationFailed,
-    InferenceModelNotFound,
-    InferenceDeviceLost,
-    InferenceInterfaceNotSupported,
-    InferenceModelInvalid,
-    InferenceGpuInteropFailed,
-    InferenceRunFailed,
 };
 
 template <> struct ErrorDomainTraits<CaptureError> {

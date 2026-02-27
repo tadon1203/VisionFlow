@@ -7,9 +7,9 @@
 #include <system_error>
 #include <utility>
 
-#include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/core/logger.hpp"
-#include "VisionFlow/inference/i_inference_result_store.hpp"
+#include "VisionFlow/inference/inference_error.hpp"
+#include "VisionFlow/inference/inference_result_store.hpp"
 #include "capture/pipeline/frame_sequencer.hpp"
 #include "inference/platform/dml/dml_image_processor.hpp"
 #include "inference/platform/dml/onnx_dml_session.hpp"
@@ -21,7 +21,7 @@ template <typename TFrame> class DmlInferenceWorker {
     using FaultHandler = std::function<void(std::string_view reason, std::error_code errorCode)>;
 
     DmlInferenceWorker(FrameSequencer<TFrame>* frameSequencer, OnnxDmlSession* session,
-                       DmlImageProcessor* dmlImageProcessor, IInferenceResultStore* resultStore,
+                       DmlImageProcessor* dmlImageProcessor, InferenceResultStore* resultStore,
                        FaultHandler faultHandler = {})
         : frameSequencer(frameSequencer), session(session), dmlImageProcessor(dmlImageProcessor),
           resultStore(resultStore), faultHandler(std::move(faultHandler)) {}
@@ -35,7 +35,7 @@ template <typename TFrame> class DmlInferenceWorker {
             resultStore == nullptr) {
             if (faultHandler) {
                 faultHandler("OnnxDmlInferenceProcessor runtime component is missing",
-                             makeErrorCode(CaptureError::InvalidState));
+                             makeErrorCode(InferenceError::InvalidState));
             }
             return;
         }
@@ -49,7 +49,7 @@ template <typename TFrame> class DmlInferenceWorker {
             if (frame.texture == nullptr) {
                 if (faultHandler) {
                     faultHandler("OnnxDmlInferenceProcessor runtime component is missing",
-                                 makeErrorCode(CaptureError::InvalidState));
+                                 makeErrorCode(InferenceError::InvalidState));
                 }
                 return;
             }
@@ -93,7 +93,7 @@ template <typename TFrame> class DmlInferenceWorker {
     FrameSequencer<TFrame>* frameSequencer;
     OnnxDmlSession* session;
     DmlImageProcessor* dmlImageProcessor;
-    IInferenceResultStore* resultStore;
+    InferenceResultStore* resultStore;
     FaultHandler faultHandler;
 };
 

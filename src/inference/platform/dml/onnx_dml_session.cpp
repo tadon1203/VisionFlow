@@ -9,8 +9,8 @@
 #include <utility>
 #include <vector>
 
-#include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/core/logger.hpp"
+#include "VisionFlow/inference/inference_error.hpp"
 
 namespace vf {
 
@@ -20,25 +20,25 @@ std::expected<OnnxDmlSession::ModelMetadata, std::error_code>
 OnnxDmlSession::createModelMetadata(std::string inputName, std::vector<int64_t> inputShape,
                                     std::vector<std::string> outputNames) {
     if (inputShape.size() != 4) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     for (const int64_t dim : inputShape) {
         if (dim <= 0) {
-            return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+            return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
         }
     }
 
     if (inputShape.at(0) != 1) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     if (inputShape.at(1) != 3) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     if (outputNames.empty()) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     ModelMetadata metadata;
@@ -97,12 +97,12 @@ namespace {
 [[nodiscard]] std::expected<void, std::error_code>
 validateNchwImageInputShape(const std::vector<int64_t>& inputShape) {
     if (inputShape.size() != 4U) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     for (const int64_t dim : inputShape) {
         if (!isPositiveOrDynamicDimension(dim)) {
-            return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+            return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
         }
     }
 
@@ -112,20 +112,20 @@ validateNchwImageInputShape(const std::vector<int64_t>& inputShape) {
     const int64_t width = inputShape.at(3);
 
     if (batch != 1 && batch != -1) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     if (channels != 3 && channels != -1) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     if (!isPositiveOrDynamicDimension(height) || !isPositiveOrDynamicDimension(width)) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     if (batch == -1 || channels == -1 || height == -1 || width == -1) {
         VF_ERROR("Dynamic input shape is not supported for DirectML preprocessing");
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     return {};
@@ -135,7 +135,7 @@ std::expected<OnnxDmlSession::ModelMetadata, std::error_code>
 readModelMetadata(Ort::Session& session) {
     const std::size_t inputCount = session.GetInputCount();
     if (inputCount != 1) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     Ort::AllocatorWithDefaultOptions allocator;
@@ -149,7 +149,7 @@ readModelMetadata(Ort::Session& session) {
     const Ort::ConstTensorTypeAndShapeInfo inputTensorInfo =
         inputTypeInfo.GetTensorTypeAndShapeInfo();
     if (inputTensorInfo.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     std::vector<int64_t> inputShape = inputTensorInfo.GetShape();
@@ -160,7 +160,7 @@ readModelMetadata(Ort::Session& session) {
 
     const std::size_t outputCount = session.GetOutputCount();
     if (outputCount == 0U) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     std::vector<std::string> outputNames;
@@ -198,14 +198,14 @@ std::expected<void, std::error_code> OnnxDmlSession::start(IDMLDevice* dmlDevice
         }
     }
     if (dmlDevice == nullptr || commandQueue == nullptr) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+        return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
     }
 
     try {
         const std::filesystem::path resolvedModelPath = resolveModelPath();
         if (!std::filesystem::exists(resolvedModelPath)) {
             VF_ERROR("Inference model was not found: {}", resolvedModelPath.string());
-            return std::unexpected(makeErrorCode(CaptureError::InferenceModelNotFound));
+            return std::unexpected(makeErrorCode(InferenceError::ModelNotFound));
         }
 
         ortEnv = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "VisionFlow");
@@ -251,20 +251,20 @@ std::expected<void, std::error_code> OnnxDmlSession::start(IDMLDevice* dmlDevice
         return {};
     } catch (const Ort::Exception& ex) {
         VF_ERROR("OnnxDmlSession start failed with ORT exception: {}", ex.what());
-        return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+        return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
     } catch (const winrt::hresult_error& ex) {
         VF_ERROR("OnnxDmlSession start failed with WinRT exception: {} (HRESULT=0x{:08X})",
                  winrt::to_string(ex.message()), static_cast<std::uint32_t>(ex.code().value));
         const auto error = isDeviceLostHresult(ex.code().value)
-                               ? CaptureError::InferenceDeviceLost
-                               : CaptureError::InferenceInitializationFailed;
+                               ? InferenceError::DeviceLost
+                               : InferenceError::InitializationFailed;
         return std::unexpected(makeErrorCode(error));
     } catch (const std::exception& ex) {
         VF_ERROR("OnnxDmlSession start failed with exception: {}", ex.what());
-        return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+        return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
     } catch (...) {
         VF_ERROR("OnnxDmlSession start failed with unknown exception");
-        return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+        return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
     }
 }
 
@@ -307,14 +307,14 @@ std::expected<InferenceResult, std::error_code>
 OnnxDmlSession::runWithGpuInput(std::int64_t frameTimestamp100ns, ID3D12Resource* resource,
                                 std::size_t resourceBytes) {
     if (!running || session == nullptr || d3d12Device == nullptr || dmlApi == nullptr) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
+        return std::unexpected(makeErrorCode(InferenceError::RunFailed));
     }
     if (resource == nullptr) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
+        return std::unexpected(makeErrorCode(InferenceError::RunFailed));
     }
 
     if (resourceBytes < modelMetadata.inputTensorBytes) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
+        return std::unexpected(makeErrorCode(InferenceError::RunFailed));
     }
 
     if (inputAllocation != nullptr && boundInputResource != resource) {
@@ -353,7 +353,7 @@ OnnxDmlSession::runWithGpuInput(std::int64_t frameTimestamp100ns, ID3D12Resource
 
         std::vector<Ort::Value> outputValues = binding.GetOutputValues();
         if (outputValues.size() != modelMetadata.outputNames.size()) {
-            return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
+            return std::unexpected(makeErrorCode(InferenceError::RunFailed));
         }
 
         InferenceResult result;
@@ -363,12 +363,12 @@ OnnxDmlSession::runWithGpuInput(std::int64_t frameTimestamp100ns, ID3D12Resource
         for (std::size_t i = 0; i < outputValues.size(); ++i) {
             Ort::Value& outputValue = outputValues.at(i);
             if (!outputValue.IsTensor()) {
-                return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
+                return std::unexpected(makeErrorCode(InferenceError::RunFailed));
             }
 
             Ort::TensorTypeAndShapeInfo tensorInfo = outputValue.GetTensorTypeAndShapeInfo();
             if (tensorInfo.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
-                return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+                return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
             }
 
             InferenceTensor tensor;
@@ -384,13 +384,13 @@ OnnxDmlSession::runWithGpuInput(std::int64_t frameTimestamp100ns, ID3D12Resource
         return result;
     } catch (const Ort::Exception& ex) {
         VF_WARN("OnnxDmlSession run failed with ORT exception: {}", ex.what());
-        return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
+        return std::unexpected(makeErrorCode(InferenceError::RunFailed));
     } catch (const std::exception& ex) {
         VF_WARN("OnnxDmlSession run failed with exception: {}", ex.what());
-        return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
+        return std::unexpected(makeErrorCode(InferenceError::RunFailed));
     } catch (...) {
         VF_WARN("OnnxDmlSession run failed with unknown exception");
-        return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
+        return std::unexpected(makeErrorCode(InferenceError::RunFailed));
     }
 }
 

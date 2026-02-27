@@ -8,7 +8,7 @@
 #include <system_error>
 #include <vector>
 
-#include "capture/common/inference_result.hpp"
+#include "VisionFlow/inference/inference_result.hpp"
 
 #if defined(_WIN32) && defined(VF_HAS_ONNXRUNTIME_DML) && VF_HAS_ONNXRUNTIME_DML
 #include <onnxruntime/core/providers/dml/dml_provider_factory.h>

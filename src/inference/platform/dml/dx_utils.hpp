@@ -6,8 +6,8 @@
 #include <type_traits>
 #include <utility>
 
-#include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/core/logger.hpp"
+#include "VisionFlow/inference/inference_error.hpp"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -114,7 +114,7 @@ class UniqueWin32Handle {
 }
 
 [[nodiscard]] inline std::expected<void, std::error_code>
-toError(std::expected<void, DxCallError> result, CaptureError errorCode) {
+toError(std::expected<void, DxCallError> result, InferenceError errorCode) {
     if (result) {
         return {};
     }
@@ -130,12 +130,12 @@ toError(std::expected<void, DxCallError> result, CaptureError errorCode) {
 }
 
 [[nodiscard]] inline std::expected<void, std::error_code> callD3d(HRESULT hr, const char* apiName,
-                                                                  CaptureError errorCode) {
+                                                                  InferenceError errorCode) {
     return toError(checkD3d(hr, apiName), errorCode);
 }
 
 [[nodiscard]] inline std::expected<void, std::error_code> callWin32(bool ok, const char* apiName,
-                                                                    CaptureError errorCode) {
+                                                                    InferenceError errorCode) {
     return toError(checkWin32(ok, apiName), errorCode);
 }
 

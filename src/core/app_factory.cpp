@@ -4,11 +4,10 @@
 #include "VisionFlow/core/app.hpp"
 #include "VisionFlow/core/logger.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
-#include "VisionFlow/inference/i_inference_result_store.hpp"
+#include "VisionFlow/inference/inference_result_store.hpp"
 #include "VisionFlow/input/mouse_controller_factory.hpp"
 #include "capture/runtime/capture_runtime_winrt.hpp"
 #include "inference/api/winrt_inference_factory.hpp"
-#include "inference/engine/inference_result_store.hpp"
 
 namespace vf {
 
@@ -17,7 +16,7 @@ namespace {
 struct AppComposition {
     std::unique_ptr<ICaptureRuntime> captureRuntime;
     std::unique_ptr<IInferenceProcessor> inferenceProcessor;
-    std::unique_ptr<IInferenceResultStore> resultStore;
+    std::unique_ptr<InferenceResultStore> resultStore;
 };
 
 AppComposition createAppComposition(const InferenceConfig& config) {

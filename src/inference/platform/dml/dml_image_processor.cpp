@@ -6,7 +6,7 @@
 #include <mutex>
 #include <system_error>
 
-#include "VisionFlow/capture/capture_error.hpp"
+#include "VisionFlow/inference/inference_error.hpp"
 #include "inference/platform/dml/dml_image_processor_interop.hpp"
 #include "inference/platform/dml/dml_image_processor_preprocess.hpp"
 #include "inference/platform/dml/dx_utils.hpp"
@@ -27,7 +27,7 @@ class DmlImageProcessor::Impl {
 
     std::expected<InitializeResult, std::error_code> initialize(ID3D11Texture2D* sourceTexture) {
         if (sourceTexture == nullptr) {
-            return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+            return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
         }
 
         std::scoped_lock lock(mutex);
@@ -53,12 +53,12 @@ class DmlImageProcessor::Impl {
     std::expected<DispatchResult, std::error_code> dispatch(ID3D11Texture2D* frameTexture,
                                                             std::uint64_t fenceValue) {
         if (frameTexture == nullptr) {
-            return std::unexpected(makeErrorCode(CaptureError::InferenceRunFailed));
+            return std::unexpected(makeErrorCode(InferenceError::RunFailed));
         }
 
         std::scoped_lock lock(mutex);
         if (!initialized) {
-            return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+            return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
         }
 
         const auto interopInitResult = interop.initializeOrUpdate(frameTexture);
@@ -105,16 +105,16 @@ class DmlImageProcessor::Impl {
 
         if (queue == nullptr || commandList == nullptr || completionFence == nullptr ||
             completionEvent == nullptr) {
-            return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+            return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
         }
 
         std::array<ID3D12CommandList*, 1> commandLists = {commandList};
         queue->ExecuteCommandLists(static_cast<UINT>(commandLists.size()), commandLists.data());
 
         const std::uint64_t completionFenceValue = preprocess.nextFenceValue();
-        const auto signalResult = dx_utils::callD3d(
-            queue->Signal(completionFence, completionFenceValue),
-            "ID3D12CommandQueue::Signal(preprocess)", CaptureError::InferenceRunFailed);
+        const auto signalResult =
+            dx_utils::callD3d(queue->Signal(completionFence, completionFenceValue),
+                              "ID3D12CommandQueue::Signal(preprocess)", InferenceError::RunFailed);
         if (!signalResult) {
             return std::unexpected(signalResult.error());
         }
@@ -122,7 +122,7 @@ class DmlImageProcessor::Impl {
         if (completionFence->GetCompletedValue() < completionFenceValue) {
             const auto setEventResult = dx_utils::callD3d(
                 completionFence->SetEventOnCompletion(completionFenceValue, completionEvent),
-                "ID3D12Fence::SetEventOnCompletion(preprocess)", CaptureError::InferenceRunFailed);
+                "ID3D12Fence::SetEventOnCompletion(preprocess)", InferenceError::RunFailed);
             if (!setEventResult) {
                 return std::unexpected(setEventResult.error());
             }
@@ -130,7 +130,7 @@ class DmlImageProcessor::Impl {
             const DWORD waitCode = WaitForSingleObject(completionEvent, INFINITE);
             const auto waitEventResult = dx_utils::callWin32(
                 waitCode == WAIT_OBJECT_0, "WaitForSingleObject(preprocessFenceEvent)",
-                CaptureError::InferenceRunFailed);
+                InferenceError::RunFailed);
             if (!waitEventResult) {
                 return std::unexpected(waitEventResult.error());
             }
@@ -217,14 +217,14 @@ DmlImageProcessor::~DmlImageProcessor() = default;
 std::expected<DmlImageProcessor::InitializeResult, std::error_code>
 DmlImageProcessor::initialize(void* sourceTexture) {
     static_cast<void>(sourceTexture);
-    return std::unexpected(makeErrorCode(CaptureError::PlatformNotSupported));
+    return std::unexpected(makeErrorCode(InferenceError::PlatformNotSupported));
 }
 
 std::expected<DmlImageProcessor::DispatchResult, std::error_code>
 DmlImageProcessor::dispatch(void* frameTexture, std::uint64_t fenceValue) {
     static_cast<void>(frameTexture);
     static_cast<void>(fenceValue);
-    return std::unexpected(makeErrorCode(CaptureError::PlatformNotSupported));
+    return std::unexpected(makeErrorCode(InferenceError::PlatformNotSupported));
 }
 
 void DmlImageProcessor::shutdown() {}

@@ -5,7 +5,7 @@
 #include <system_error>
 
 #include "VisionFlow/core/config.hpp"
-#include "VisionFlow/inference/i_inference_result_store.hpp"
+#include "VisionFlow/inference/inference_result_store.hpp"
 
 namespace vf {
 
@@ -13,6 +13,6 @@ class IInferenceProcessor;
 
 [[nodiscard]] std::expected<std::unique_ptr<IInferenceProcessor>, std::error_code>
 createWinrtInferenceProcessor(const InferenceConfig& inferenceConfig,
-                              IInferenceResultStore& resultStore);
+                              InferenceResultStore& resultStore);
 
 } // namespace vf

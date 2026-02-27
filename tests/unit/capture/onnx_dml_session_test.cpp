@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 
-#include "VisionFlow/capture/capture_error.hpp"
+#include "VisionFlow/inference/inference_error.hpp"
 
 namespace vf {
 namespace {
@@ -15,7 +15,7 @@ TEST(OnnxDmlSessionTest, RejectsInputShapeWithBatchGreaterThanOne) {
         "input", std::vector<int64_t>{2, 3, 640, 640}, std::vector<std::string>{"output"});
 
     ASSERT_FALSE(metadataResult.has_value());
-    EXPECT_EQ(metadataResult.error(), makeErrorCode(CaptureError::InferenceModelInvalid));
+    EXPECT_EQ(metadataResult.error(), makeErrorCode(InferenceError::ModelInvalid));
 }
 
 TEST(OnnxDmlSessionTest, CreatesMetadataForSingleBatchRgbInput) {

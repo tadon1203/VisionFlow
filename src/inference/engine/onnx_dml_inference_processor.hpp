@@ -12,7 +12,7 @@
 
 #include "VisionFlow/core/config.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
-#include "VisionFlow/inference/i_inference_result_store.hpp"
+#include "VisionFlow/inference/inference_result_store.hpp"
 #include "capture/pipeline/frame_sequencer.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
 #include "inference/common/inference_frame.hpp"
@@ -25,12 +25,9 @@ class OnnxDmlSession;
 
 class OnnxDmlInferenceProcessor final : public IInferenceProcessor, public IWinrtFrameSink {
   public:
-    static std::expected<std::unique_ptr<OnnxDmlInferenceProcessor>, std::error_code>
-    createDefault(InferenceConfig config, IInferenceResultStore* resultStore);
-
     OnnxDmlInferenceProcessor(InferenceConfig config,
                               std::unique_ptr<FrameSequencer<InferenceFrame>> frameSequencer,
-                              IInferenceResultStore* resultStore,
+                              InferenceResultStore* resultStore,
                               std::unique_ptr<OnnxDmlSession> session,
                               std::unique_ptr<DmlImageProcessor> dmlImageProcessor,
                               std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker);
@@ -66,7 +63,7 @@ class OnnxDmlInferenceProcessor final : public IInferenceProcessor, public IWinr
     std::unique_ptr<FrameSequencer<InferenceFrame>> frameSequencer;
     std::atomic<std::uint64_t> frameSequence{0};
 
-    IInferenceResultStore* resultStore = nullptr;
+    InferenceResultStore* resultStore = nullptr;
     std::unique_ptr<OnnxDmlSession> session;
     std::unique_ptr<DmlImageProcessor> dmlImageProcessor;
     std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker;

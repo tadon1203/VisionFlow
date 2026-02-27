@@ -6,6 +6,7 @@
 
 #include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
+#include "VisionFlow/inference/inference_error.hpp"
 #include "capture/runtime/capture_runtime_state.hpp"
 #include "capture/sources/winrt/capture_source_winrt.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
@@ -102,7 +103,7 @@ WinrtCaptureRuntime::attachInferenceProcessor(IInferenceProcessor& processor) {
 
     auto* sink = dynamic_cast<IWinrtFrameSink*>(&processor);
     if (sink == nullptr) {
-        return std::unexpected(makeErrorCode(CaptureError::InferenceInterfaceNotSupported));
+        return std::unexpected(makeErrorCode(InferenceError::InterfaceNotSupported));
     }
 
     attachFrameSink(sink);

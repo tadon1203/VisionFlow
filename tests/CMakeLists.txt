@@ -8,6 +8,7 @@ add_executable(VisionFlowUnitTests
     unit/core/app_test.cpp
     unit/core/config_loader_test.cpp
     unit/core/error_domain_contract_test.cpp
+    unit/inference/inference_error_test.cpp
     unit/input/makcu_controller_test.cpp
     unit/input/mouse_error_test.cpp
 )

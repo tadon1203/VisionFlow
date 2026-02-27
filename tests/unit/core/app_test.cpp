@@ -12,7 +12,7 @@
 #include "VisionFlow/capture/i_capture_runtime.hpp"
 #include "VisionFlow/core/config.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
-#include "VisionFlow/inference/i_inference_result_store.hpp"
+#include "VisionFlow/inference/inference_result_store.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
 
 namespace vf {
@@ -41,14 +41,8 @@ class MockInferenceProcessor : public IInferenceProcessor {
     MOCK_METHOD((std::expected<void, std::error_code>), poll, (), (override));
 };
 
-class MockInferenceResultStore : public IInferenceResultStore {
-  public:
-    MOCK_METHOD(void, publish, (InferenceResult result), (override));
-    MOCK_METHOD((std::optional<InferenceResult>), take, (), (override));
-};
-
 TEST(AppTest, RunReturnsInvalidArgumentWhenControllerIsNull) {
-    App app(nullptr, AppConfig{});
+    App app(nullptr, AppConfig{}, CaptureConfig{}, nullptr, nullptr, nullptr);
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());
     EXPECT_EQ(result.error(), std::make_error_code(std::errc::invalid_argument));
@@ -58,7 +52,7 @@ TEST(AppTest, RunPropagatesCaptureStartError) {
     auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
     auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
-    auto store = std::make_unique<testing::StrictMock<MockInferenceResultStore>>();
+    auto store = std::make_unique<InferenceResultStore>();
 
     EXPECT_CALL(*inference, start())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
@@ -78,7 +72,7 @@ TEST(AppTest, RunPropagatesInferenceStartError) {
     auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
     auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
-    auto store = std::make_unique<testing::StrictMock<MockInferenceResultStore>>();
+    auto store = std::make_unique<InferenceResultStore>();
 
     EXPECT_CALL(*inference, start())
         .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
@@ -96,7 +90,7 @@ TEST(AppTest, RunPropagatesCapturePollError) {
     auto* capturePtr = capture.get();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
     auto* inferencePtr = inference.get();
-    auto store = std::make_unique<testing::StrictMock<MockInferenceResultStore>>();
+    auto store = std::make_unique<InferenceResultStore>();
 
     EXPECT_CALL(*inferencePtr, start())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
@@ -127,8 +121,7 @@ TEST(AppTest, RunReturnsFalseWhenConnectFails) {
     auto* capturePtr = capture.get();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
     auto* inferencePtr = inference.get();
-    auto store = std::make_unique<testing::StrictMock<MockInferenceResultStore>>();
-    auto* storePtr = store.get();
+    auto store = std::make_unique<InferenceResultStore>();
 
     EXPECT_CALL(*inferencePtr, start())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
@@ -144,7 +137,6 @@ TEST(AppTest, RunReturnsFalseWhenConnectFails) {
     EXPECT_CALL(*mockPtr, connect())
         .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
     EXPECT_CALL(*mockPtr, shouldRetryConnect(testing::_)).WillOnce(testing::Return(false));
-    EXPECT_CALL(*storePtr, take()).Times(0);
     EXPECT_CALL(*capturePtr, stop())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
     EXPECT_CALL(*inferencePtr, stop())
@@ -166,8 +158,7 @@ TEST(AppTest, RunRetriesConnectForRecoverableErrorThenFails) {
     auto* capturePtr = capture.get();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
     auto* inferencePtr = inference.get();
-    auto store = std::make_unique<testing::StrictMock<MockInferenceResultStore>>();
-    auto* storePtr = store.get();
+    auto store = std::make_unique<InferenceResultStore>();
 
     EXPECT_CALL(*inferencePtr, start())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
@@ -188,7 +179,6 @@ TEST(AppTest, RunRetriesConnectForRecoverableErrorThenFails) {
     EXPECT_CALL(*mockPtr, shouldRetryConnect(testing::_))
         .WillOnce(testing::Return(true))
         .WillOnce(testing::Return(false));
-    EXPECT_CALL(*storePtr, take()).Times(0);
     EXPECT_CALL(*capturePtr, stop())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
     EXPECT_CALL(*inferencePtr, stop())
@@ -209,7 +199,7 @@ TEST(AppTest, ShutdownOrderIsCaptureThenInferenceThenMouse) {
     auto* capturePtr = capture.get();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
     auto* inferencePtr = inference.get();
-    auto store = std::make_unique<testing::StrictMock<MockInferenceResultStore>>();
+    auto store = std::make_unique<InferenceResultStore>();
 
     EXPECT_CALL(*inferencePtr, start())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));

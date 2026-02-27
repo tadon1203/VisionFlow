@@ -40,8 +40,7 @@ main
     -> IInferenceProcessor (interface)
       -> OnnxDmlInferenceProcessor
         -> OnnxDmlSession (DirectML + IO Binding)
-      -> IInferenceResultStore (interface)
-        -> InferenceResultStore
+      -> InferenceResultStore
     -> CaptureRuntime (interface)
       -> WinrtCaptureRuntime (implementation)
         -> WinrtCaptureSource
@@ -83,7 +82,7 @@ main
 - Owns one `IMouseController`
 - Owns one `ICaptureRuntime`
 - Owns one `IInferenceProcessor`
-- Owns one `IInferenceResultStore`
+- Owns one `InferenceResultStore`
 - Handles startup/shutdown flow
 - Acts as reconnect supervisor: retries `connect()` for recoverable failures with a fixed interval
 - Initializes logging and drives the main loop
@@ -155,8 +154,8 @@ main
   - `onnx_dml_session_stub.cpp`
 
 ### Inference Result Path
-1. Inference worker publishes result to `IInferenceResultStore`
-2. `App::tickOnce()` consumes one result via `IInferenceResultStore::take()`
+1. Inference worker publishes result to `InferenceResultStore`
+2. `App::tickOnce()` consumes one result via `InferenceResultStore::take()`
 3. App applies the result to runtime actions (mouse/output behavior)
 
 ### Move Path

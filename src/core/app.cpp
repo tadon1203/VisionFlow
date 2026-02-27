@@ -11,38 +11,13 @@
 
 #include "VisionFlow/core/logger.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
-#include "VisionFlow/inference/i_inference_result_store.hpp"
+#include "VisionFlow/inference/inference_result_store.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
 #include "core/expected_utils.hpp"
 
 namespace vf {
 
 namespace {
-
-class NoopCaptureRuntime final : public ICaptureRuntime {
-  public:
-    [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config) override {
-        static_cast<void>(config);
-        return {};
-    }
-
-    [[nodiscard]] std::expected<void, std::error_code> stop() override { return {}; }
-    [[nodiscard]] std::expected<void, std::error_code> poll() override { return {}; }
-};
-
-class NoopInferenceProcessor final : public IInferenceProcessor {
-  public:
-    [[nodiscard]] std::expected<void, std::error_code> start() override { return {}; }
-    [[nodiscard]] std::expected<void, std::error_code> stop() override { return {}; }
-    [[nodiscard]] std::expected<void, std::error_code> poll() override { return {}; }
-};
-
-class NoopInferenceResultStore final : public IInferenceResultStore {
-  public:
-    void publish(InferenceResult result) override { static_cast<void>(result); }
-    [[nodiscard]] std::optional<InferenceResult> take() override { return std::nullopt; }
-};
-
 [[nodiscard]] std::expected<void, std::error_code>
 logErrorAndPropagate(std::string_view context, const std::error_code& error) {
     VF_ERROR("{} ({})", context, error.message());
@@ -51,18 +26,15 @@ logErrorAndPropagate(std::string_view context, const std::error_code& error) {
 
 } // namespace
 
-App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig)
-    : App(std::move(mouseController), appConfig, CaptureConfig{},
-          std::make_unique<NoopCaptureRuntime>(), std::make_unique<NoopInferenceProcessor>(),
-          std::make_unique<NoopInferenceResultStore>()) {}
-
 App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
          CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
          std::unique_ptr<IInferenceProcessor> inferenceProcessor,
-         std::unique_ptr<IInferenceResultStore> resultStore)
+         std::unique_ptr<InferenceResultStore> resultStore)
     : appConfig(appConfig), captureConfig(captureConfig),
       mouseController(std::move(mouseController)), captureRuntime(std::move(captureRuntime)),
       inferenceProcessor(std::move(inferenceProcessor)), resultStore(std::move(resultStore)) {}
+
+App::~App() = default;
 
 std::expected<void, std::error_code> App::run() {
     VF_INFO("App run started");

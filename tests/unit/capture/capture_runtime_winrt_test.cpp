@@ -7,6 +7,7 @@
 
 #include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
+#include "VisionFlow/inference/inference_error.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
 
 namespace vf {
@@ -36,7 +37,7 @@ TEST(WinrtCaptureRuntimeTest, AttachInferenceProcessorFailsWhenSinkInterfaceIsMi
 
     const auto result = runtime.attachInferenceProcessor(processor);
     ASSERT_FALSE(result.has_value());
-    EXPECT_EQ(result.error(), makeErrorCode(CaptureError::InferenceInterfaceNotSupported));
+    EXPECT_EQ(result.error(), makeErrorCode(InferenceError::InterfaceNotSupported));
 }
 
 TEST(WinrtCaptureRuntimeTest, StartFailsWithInvalidStateWhenSinkIsNotAttached) {
