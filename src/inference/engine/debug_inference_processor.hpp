@@ -8,7 +8,7 @@
 
 namespace vf {
 
-class DebugCaptureProcessor final : public IInferenceProcessor, public IWinrtFrameSink {
+class DebugInferenceProcessor final : public IInferenceProcessor, public IWinrtFrameSink {
   public:
     [[nodiscard]] std::expected<void, std::error_code> start() override { return {}; }
     [[nodiscard]] std::expected<void, std::error_code> stop() override { return {}; }

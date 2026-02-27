@@ -121,6 +121,8 @@ add_library(vf_inference STATIC
     src/inference/engine/inference_result_store.cpp
     src/inference/engine/onnx_dml_inference_processor.cpp
     src/inference/platform/dml/dml_image_processor.cpp
+    src/inference/platform/dml/dml_image_processor_interop.cpp
+    src/inference/platform/dml/dml_image_processor_preprocess.cpp
     src/inference/platform/dml/onnx_dml_session.cpp
     src/inference/platform/dml/onnx_dml_session_stub.cpp
 )

@@ -38,7 +38,7 @@ main
   -> WinRtPlatformContext (RAII)
   -> App(config)
     -> IInferenceProcessor (interface)
-      -> OnnxDmlCaptureProcessor
+      -> OnnxDmlInferenceProcessor
         -> OnnxDmlSession (DirectML + IO Binding)
       -> IInferenceResultStore (interface)
         -> InferenceResultStore
@@ -47,7 +47,7 @@ main
         -> WinrtCaptureSource
           -> WinrtCaptureSession
           -> IWinrtFrameSink (private src boundary)
-            -> OnnxDmlCaptureProcessor
+            -> OnnxDmlInferenceProcessor
     -> createMouseController()
       -> IMouseController (interface)
         -> MakcuMouseController (implementation, `MakcuController` is an alias)
@@ -144,7 +144,7 @@ main
 5. Start capture session
 6. Push each texture frame to capture processor
 7. Keep only the freshest frame in the processor and drop stale frames
-8. `OnnxDmlCaptureProcessor` forwards only the latest frame to `DmlImageProcessor`
+8. `OnnxDmlInferenceProcessor` forwards only the latest frame to `DmlImageProcessor`
 9. `DmlImageProcessor` owns shared texture/fence bridging (D3D11/D3D12 interop)
 10. `DmlImageProcessor` owns preprocess pipeline setup/recording
 11. `OnnxDmlSession` consumes that D3D12 buffer via ONNX Runtime DirectML (`DML1`) IO Binding
@@ -178,7 +178,7 @@ main
 
 ## Concurrency Model
 - `MakcuMouseController` is the sole owner of its worker thread
-- `OnnxDmlCaptureProcessor` is the sole owner of its inference thread
+- `OnnxDmlInferenceProcessor` is the sole owner of its inference thread
 - Shared mutable state is protected by explicit mutexes
 - Shutdown sequence is explicit and deterministic
 
@@ -194,9 +194,11 @@ main
 - `src/capture/*`: private capture shared/abstract components
 - `src/capture/pipeline/*`: private capture pipeline components
 - `src/inference/platform/dml/*`: private DML backend components
+  - `dml_image_processor` orchestrates preprocessing
+  - `dml_image_processor_interop` owns D3D11/D3D12 shared resource/fence interop
+  - `dml_image_processor_preprocess` owns compute preprocess pipeline setup/dispatch
 - `src/inference/engine/*`: private debug backend components
 - `src/capture/sources/winrt/*`: private WinRT capture components
-  - includes WinRT-native captured frame representation passed to inference (`winrt_capture_frame`)
 - `src/capture/runtime/*`: private runtime composition
 - `src/platform/winrt/*`: private platform runtime context
 - `config/*`: runtime configuration inputs

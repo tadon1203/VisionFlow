@@ -34,7 +34,7 @@ template <typename TFrame> class DmlInferenceWorker {
         if (frameSequencer == nullptr || session == nullptr || dmlImageProcessor == nullptr ||
             resultStore == nullptr) {
             if (faultHandler) {
-                faultHandler("OnnxDmlCaptureProcessor runtime component is missing",
+                faultHandler("OnnxDmlInferenceProcessor runtime component is missing",
                              makeErrorCode(CaptureError::InvalidState));
             }
             return;
@@ -48,7 +48,7 @@ template <typename TFrame> class DmlInferenceWorker {
 
             if (frame.texture == nullptr) {
                 if (faultHandler) {
-                    faultHandler("OnnxDmlCaptureProcessor runtime component is missing",
+                    faultHandler("OnnxDmlInferenceProcessor runtime component is missing",
                                  makeErrorCode(CaptureError::InvalidState));
                 }
                 return;
@@ -58,7 +58,7 @@ template <typename TFrame> class DmlInferenceWorker {
                 initializeResult = dmlImageProcessor->initialize(frame.texture.get());
             if (!initializeResult) {
                 if (faultHandler) {
-                    faultHandler("OnnxDmlCaptureProcessor GPU initialization failed",
+                    faultHandler("OnnxDmlInferenceProcessor GPU initialization failed",
                                  initializeResult.error());
                 }
                 return;
@@ -68,7 +68,7 @@ template <typename TFrame> class DmlInferenceWorker {
                 dmlImageProcessor->dispatch(frame.texture.get(), frame.fenceValue);
             if (!dispatchResult) {
                 if (faultHandler) {
-                    faultHandler("OnnxDmlCaptureProcessor preprocess failed",
+                    faultHandler("OnnxDmlInferenceProcessor preprocess failed",
                                  dispatchResult.error());
                 }
                 return;
@@ -80,7 +80,7 @@ template <typename TFrame> class DmlInferenceWorker {
                                          dispatchResult->outputBytes);
 
             if (!inferenceResult) {
-                VF_WARN("OnnxDmlCaptureProcessor inference failed: {}",
+                VF_WARN("OnnxDmlInferenceProcessor inference failed: {}",
                         inferenceResult.error().message());
                 continue;
             }
