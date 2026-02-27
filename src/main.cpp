@@ -2,7 +2,7 @@
 #include "VisionFlow/core/app_error.hpp"
 #include "VisionFlow/core/config_loader.hpp"
 #include "VisionFlow/core/logger.hpp"
-#include "core/winrt_platform_context.hpp"
+#include "platform/winrt/platform_context_winrt.hpp"
 
 int main() {
     vf::Logger::init();
@@ -13,7 +13,7 @@ int main() {
         return -1;
     }
 
-    vf::WinRtPlatformContext platformContext;
+    vf::WinrtPlatformContext platformContext;
     const auto platformInitResult = platformContext.initialize();
     if (!platformInitResult) {
         VF_ERROR("Failed to initialize platform runtime: {} ({})",
@@ -23,7 +23,9 @@ int main() {
     }
 
     vf::App app(configResult.value());
-    if (!app.run()) {
+    const auto runResult = app.run();
+    if (!runResult) {
+        VF_ERROR("App run failed: {}", runResult.error().message());
         return -1;
     }
     return 0;

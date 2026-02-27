@@ -27,14 +27,6 @@ std::string_view ErrorDomainTraits<CaptureError>::message(CaptureError error) no
         return "capture session start failed";
     case CaptureError::SessionStopFailed:
         return "capture session stop failed";
-    case CaptureError::InferenceInitializationFailed:
-        return "inference initialization failed";
-    case CaptureError::InferenceModelInvalid:
-        return "inference model is invalid";
-    case CaptureError::InferenceGpuInteropFailed:
-        return "inference gpu interop failed";
-    case CaptureError::InferenceRunFailed:
-        return "inference run failed";
     default:
         return {};
     }

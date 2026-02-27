@@ -19,10 +19,5 @@ TEST(CaptureErrorTest, MessageForSessionStopFailedIsStable) {
     EXPECT_EQ(code.message(), "capture session stop failed");
 }
 
-TEST(CaptureErrorTest, MessageForInferenceRunFailedIsStable) {
-    const auto code = makeErrorCode(CaptureError::InferenceRunFailed);
-    EXPECT_EQ(code.message(), "inference run failed");
-}
-
 } // namespace
 } // namespace vf

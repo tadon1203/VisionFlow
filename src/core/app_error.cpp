@@ -19,6 +19,10 @@ std::string_view ErrorDomainTraits<AppError>::message(AppError error) noexcept {
         return "platform initialization failed";
     case AppError::CaptureStartFailed:
         return "capture start failed";
+    case AppError::InferenceStartFailed:
+        return "inference start failed";
+    case AppError::InferenceStopFailed:
+        return "inference stop failed";
     default:
         return {};
     }

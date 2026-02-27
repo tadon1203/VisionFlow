@@ -1,9 +1,13 @@
 #pragma once
 
+#include <expected>
 #include <memory>
+#include <system_error>
 
 #include "VisionFlow/capture/i_capture_runtime.hpp"
 #include "VisionFlow/core/config.hpp"
+#include "VisionFlow/inference/i_inference_processor.hpp"
+#include "VisionFlow/inference/inference_result_store.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
 
 namespace vf {
@@ -11,11 +15,13 @@ namespace vf {
 class App {
   public:
     explicit App(const VisionFlowConfig& config);
-    App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig);
     App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
-        CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime);
+        CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
+        std::unique_ptr<IInferenceProcessor> inferenceProcessor,
+        std::unique_ptr<InferenceResultStore> resultStore);
+    ~App();
 
-    bool run();
+    [[nodiscard]] std::expected<void, std::error_code> run();
 
   private:
     bool running = false;
@@ -23,11 +29,15 @@ class App {
     CaptureConfig captureConfig;
     std::unique_ptr<IMouseController> mouseController;
     std::unique_ptr<ICaptureRuntime> captureRuntime;
+    std::unique_ptr<IInferenceProcessor> inferenceProcessor;
+    std::unique_ptr<InferenceResultStore> resultStore;
 
-    bool setup();
-    bool tickLoop();
+    [[nodiscard]] std::expected<void, std::error_code> setup();
+    [[nodiscard]] std::expected<void, std::error_code> tickLoop();
     void shutdown();
-    void tick() const;
+    [[nodiscard]] std::expected<void, std::error_code> tickOnce();
+    [[nodiscard]] std::expected<void, std::error_code>
+    applyInferenceToMouse(const InferenceResult& result);
 };
 
 } // namespace vf
