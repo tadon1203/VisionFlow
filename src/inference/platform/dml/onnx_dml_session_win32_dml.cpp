@@ -13,10 +13,52 @@
 
 #if defined(_WIN32) && defined(VF_HAS_ONNXRUNTIME_DML) && VF_HAS_ONNXRUNTIME_DML
 #include <d3d12.h>
+#include <dxgi.h>
 
 namespace vf {
 
 namespace {
+
+[[nodiscard]] bool isPositiveOrDynamicDimension(int64_t dim) noexcept {
+    return dim > 0 || dim == -1;
+}
+
+[[nodiscard]] std::expected<void, std::error_code>
+validateNchwImageInputShape(const std::vector<int64_t>& inputShape) {
+    if (inputShape.size() != 4U) {
+        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+    }
+
+    for (const int64_t dim : inputShape) {
+        if (!isPositiveOrDynamicDimension(dim)) {
+            return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+        }
+    }
+
+    const int64_t batch = inputShape.at(0);
+    const int64_t channels = inputShape.at(1);
+    const int64_t height = inputShape.at(2);
+    const int64_t width = inputShape.at(3);
+
+    if (batch != 1 && batch != -1) {
+        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+    }
+
+    if (channels != 3 && channels != -1) {
+        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+    }
+
+    if (!isPositiveOrDynamicDimension(height) || !isPositiveOrDynamicDimension(width)) {
+        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+    }
+
+    if (batch == -1 || channels == -1 || height == -1 || width == -1) {
+        VF_ERROR("Dynamic input shape is not supported for DirectML preprocessing");
+        return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
+    }
+
+    return {};
+}
 
 std::expected<OnnxDmlSession::ModelMetadata, std::error_code>
 readModelMetadata(Ort::Session& session) {
@@ -40,6 +82,11 @@ readModelMetadata(Ort::Session& session) {
     }
 
     std::vector<int64_t> inputShape = inputTensorInfo.GetShape();
+    const auto shapeValidationResult = validateNchwImageInputShape(inputShape);
+    if (!shapeValidationResult) {
+        return std::unexpected(shapeValidationResult.error());
+    }
+
     const std::size_t outputCount = session.GetOutputCount();
     if (outputCount == 0U) {
         return std::unexpected(makeErrorCode(CaptureError::InferenceModelInvalid));
@@ -54,6 +101,11 @@ readModelMetadata(Ort::Session& session) {
 
     return OnnxDmlSession::createModelMetadata(std::move(inputName), std::move(inputShape),
                                                std::move(outputNames));
+}
+
+[[nodiscard]] bool isDeviceLostHresult(HRESULT hr) noexcept {
+    return hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET ||
+           hr == DXGI_ERROR_DEVICE_HUNG;
 }
 
 } // namespace
@@ -82,7 +134,7 @@ std::expected<void, std::error_code> OnnxDmlSession::start(IDMLDevice* dmlDevice
         const std::filesystem::path resolvedModelPath = resolveModelPath();
         if (!std::filesystem::exists(resolvedModelPath)) {
             VF_ERROR("Inference model was not found: {}", resolvedModelPath.string());
-            return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+            return std::unexpected(makeErrorCode(CaptureError::InferenceModelNotFound));
         }
 
         ortEnv = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "VisionFlow");
@@ -132,7 +184,10 @@ std::expected<void, std::error_code> OnnxDmlSession::start(IDMLDevice* dmlDevice
     } catch (const winrt::hresult_error& ex) {
         VF_ERROR("OnnxDmlSession start failed with WinRT exception: {} (HRESULT=0x{:08X})",
                  winrt::to_string(ex.message()), static_cast<std::uint32_t>(ex.code().value));
-        return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
+        const auto error = isDeviceLostHresult(ex.code().value)
+                               ? CaptureError::InferenceDeviceLost
+                               : CaptureError::InferenceInitializationFailed;
+        return std::unexpected(makeErrorCode(error));
     } catch (const std::exception& ex) {
         VF_ERROR("OnnxDmlSession start failed with exception: {}", ex.what());
         return std::unexpected(makeErrorCode(CaptureError::InferenceInitializationFailed));
