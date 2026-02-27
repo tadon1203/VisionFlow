@@ -27,4 +27,7 @@ target_link_libraries(VisionFlowUnitTests
 )
 
 include(GoogleTest)
-gtest_discover_tests(VisionFlowUnitTests)
+gtest_discover_tests(
+    VisionFlowUnitTests
+    DISCOVERY_TIMEOUT 60
+)
