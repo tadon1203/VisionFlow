@@ -1,6 +1,8 @@
 #pragma once
 
+#include <expected>
 #include <memory>
+#include <system_error>
 
 #include "VisionFlow/capture/i_capture_runtime.hpp"
 #include "VisionFlow/core/config.hpp"
@@ -19,7 +21,7 @@ class App {
         std::unique_ptr<IInferenceProcessor> inferenceProcessor,
         std::unique_ptr<IInferenceResultStore> resultStore);
 
-    bool run();
+    [[nodiscard]] std::expected<void, std::error_code> run();
 
   private:
     bool running = false;
@@ -30,11 +32,12 @@ class App {
     std::unique_ptr<IInferenceProcessor> inferenceProcessor;
     std::unique_ptr<IInferenceResultStore> resultStore;
 
-    bool setup();
-    bool tickLoop();
+    [[nodiscard]] std::expected<void, std::error_code> setup();
+    [[nodiscard]] std::expected<void, std::error_code> tickLoop();
     void shutdown();
-    void tick();
-    void applyInferenceToMouse(const InferenceResult& result);
+    [[nodiscard]] std::expected<void, std::error_code> tick();
+    [[nodiscard]] std::expected<void, std::error_code>
+    applyInferenceToMouse(const InferenceResult& result);
 };
 
 } // namespace vf

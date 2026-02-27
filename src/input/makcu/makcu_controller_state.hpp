@@ -5,8 +5,6 @@
 #include <mutex>
 #include <system_error>
 
-#include "VisionFlow/input/i_mouse_controller.hpp"
-
 namespace vf {
 
 enum class MakcuControllerState : std::uint8_t {
@@ -27,11 +25,8 @@ class MakcuStateMachine {
     void setDisconnectResult(bool disconnected);
 
     [[nodiscard]] bool isReady() const;
-    [[nodiscard]] IMouseController::State state() const;
 
   private:
-    [[nodiscard]] static IMouseController::State mapState(MakcuControllerState state);
-
     mutable std::mutex stateMutex;
     MakcuControllerState currentState = MakcuControllerState::Idle;
 };

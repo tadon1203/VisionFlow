@@ -16,6 +16,7 @@ class IInferenceProcessor {
 
     [[nodiscard]] virtual std::expected<void, std::error_code> start() = 0;
     [[nodiscard]] virtual std::expected<void, std::error_code> stop() = 0;
+    [[nodiscard]] virtual std::expected<void, std::error_code> poll() = 0;
 };
 
 } // namespace vf

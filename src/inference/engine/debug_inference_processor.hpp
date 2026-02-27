@@ -12,6 +12,7 @@ class DebugInferenceProcessor final : public IInferenceProcessor, public IWinrtF
   public:
     [[nodiscard]] std::expected<void, std::error_code> start() override { return {}; }
     [[nodiscard]] std::expected<void, std::error_code> stop() override { return {}; }
+    [[nodiscard]] std::expected<void, std::error_code> poll() override { return {}; }
     void onFrame(ID3D11Texture2D* texture, const CaptureFrameInfo& info) override;
 };
 

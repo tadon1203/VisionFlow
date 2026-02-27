@@ -26,12 +26,14 @@ class NoopCaptureRuntime final : public ICaptureRuntime {
     }
 
     [[nodiscard]] std::expected<void, std::error_code> stop() override { return {}; }
+    [[nodiscard]] std::expected<void, std::error_code> poll() override { return {}; }
 };
 
 class NoopInferenceProcessor final : public IInferenceProcessor {
   public:
     [[nodiscard]] std::expected<void, std::error_code> start() override { return {}; }
     [[nodiscard]] std::expected<void, std::error_code> stop() override { return {}; }
+    [[nodiscard]] std::expected<void, std::error_code> poll() override { return {}; }
 };
 
 class NoopInferenceResultStore final : public IInferenceResultStore {
@@ -55,32 +57,37 @@ App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
       mouseController(std::move(mouseController)), captureRuntime(std::move(captureRuntime)),
       inferenceProcessor(std::move(inferenceProcessor)), resultStore(std::move(resultStore)) {}
 
-bool App::run() {
+std::expected<void, std::error_code> App::run() {
     VF_INFO("App run started");
 
-    if (!setup()) {
-        return false;
+    const std::expected<void, std::error_code> setupResult = setup();
+    if (!setupResult) {
+        return std::unexpected(setupResult.error());
     }
 
-    const bool success = tickLoop();
+    const std::expected<void, std::error_code> loopResult = tickLoop();
     shutdown();
 
+    if (!loopResult) {
+        return std::unexpected(loopResult.error());
+    }
+
     VF_INFO("App run finished");
-    return success;
+    return {};
 }
 
-bool App::setup() {
+std::expected<void, std::error_code> App::setup() {
     if (mouseController == nullptr || captureRuntime == nullptr || inferenceProcessor == nullptr ||
         resultStore == nullptr) {
         VF_ERROR("App run failed: {}", makeErrorCode(AppError::CompositionFailed).message());
-        return false;
+        return std::unexpected(makeErrorCode(AppError::CompositionFailed));
     }
 
     const std::expected<void, std::error_code> inferenceStartResult = inferenceProcessor->start();
     if (!inferenceStartResult) {
         VF_ERROR("App run failed: {} ({})", makeErrorCode(AppError::InferenceStartFailed).message(),
                  inferenceStartResult.error().message());
-        return false;
+        return std::unexpected(makeErrorCode(AppError::InferenceStartFailed));
     }
 
     const std::expected<void, std::error_code> captureStartResult =
@@ -93,21 +100,29 @@ bool App::setup() {
             VF_WARN("App setup rollback warning: inference stop failed ({})",
                     inferenceStopResult.error().message());
         }
-        return false;
+        return std::unexpected(makeErrorCode(AppError::CaptureStartFailed));
     }
 
     running = true;
-    return true;
+    return {};
 }
 
-bool App::tickLoop() {
-    bool success = true;
+std::expected<void, std::error_code> App::tickLoop() {
     while (running) {
-        const IMouseController::State state = mouseController->getState();
-        if (state != IMouseController::State::Idle) {
-            tick();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            continue;
+        const std::expected<void, std::error_code> capturePollResult = captureRuntime->poll();
+        if (!capturePollResult) {
+            VF_ERROR("App loop failed: capture poll error ({})",
+                     capturePollResult.error().message());
+            running = false;
+            return std::unexpected(capturePollResult.error());
+        }
+
+        const std::expected<void, std::error_code> inferencePollResult = inferenceProcessor->poll();
+        if (!inferencePollResult) {
+            VF_ERROR("App loop failed: inference poll error ({})",
+                     inferencePollResult.error().message());
+            running = false;
+            return std::unexpected(inferencePollResult.error());
         }
 
         const std::expected<void, std::error_code> connectResult = mouseController->connect();
@@ -116,20 +131,24 @@ bool App::tickLoop() {
             if (!mouseController->shouldRetryConnect(connectResult.error())) {
                 VF_ERROR("App run failed: unrecoverable connect error ({})",
                          connectResult.error().message());
-                success = false;
                 running = false;
-                break;
+                return std::unexpected(connectResult.error());
             }
 
             std::this_thread::sleep_for(appConfig.reconnectRetryMs);
             continue;
         }
 
-        tick();
+        const std::expected<void, std::error_code> tickResult = tick();
+        if (!tickResult) {
+            running = false;
+            return std::unexpected(tickResult.error());
+        }
+
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    return success;
+    return {};
 }
 
 void App::shutdown() {
@@ -153,19 +172,22 @@ void App::shutdown() {
     }
 }
 
-void App::tick() {
+std::expected<void, std::error_code> App::tick() {
     if (resultStore == nullptr) {
-        return;
+        return std::unexpected(makeErrorCode(AppError::CompositionFailed));
     }
 
     const std::optional<InferenceResult> latestResult = resultStore->take();
     if (!latestResult.has_value()) {
-        return;
+        return {};
     }
 
-    applyInferenceToMouse(*latestResult);
+    return applyInferenceToMouse(*latestResult);
 }
 
-void App::applyInferenceToMouse(const InferenceResult& result) { static_cast<void>(result); }
+std::expected<void, std::error_code> App::applyInferenceToMouse(const InferenceResult& result) {
+    static_cast<void>(result);
+    return {};
+}
 
 } // namespace vf

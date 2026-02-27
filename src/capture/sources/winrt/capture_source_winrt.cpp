@@ -54,15 +54,17 @@ std::expected<void, std::error_code> WinrtCaptureSource::start(const CaptureConf
             return std::unexpected(makeErrorCode(CaptureError::InvalidState));
         }
         state = CaptureState::Starting;
+        lastError.clear();
     }
 
-    auto markFault = [this]() {
+    auto markFault = [this](const std::error_code& error) {
         std::scoped_lock lock(stateMutex);
         state = CaptureState::Fault;
+        lastError = error;
     };
 
     if (session == nullptr) {
-        markFault();
+        markFault(makeErrorCode(CaptureError::InvalidState));
         return std::unexpected(makeErrorCode(CaptureError::InvalidState));
     }
 
@@ -70,13 +72,13 @@ std::expected<void, std::error_code> WinrtCaptureSource::start(const CaptureConf
         const std::expected<void, std::error_code> initializeResult =
             session->initializeDeviceAndItem(config.preferredDisplayIndex);
         if (!initializeResult) {
-            markFault();
+            markFault(initializeResult.error());
             VF_ERROR("WinrtCaptureSource start failed during device/item initialization: {}",
                      initializeResult.error().message());
             return std::unexpected(initializeResult.error());
         }
     } catch (const winrt::hresult_error& ex) {
-        markFault();
+        markFault(makeErrorCode(CaptureError::DeviceInitializationFailed));
         VF_ERROR("WinrtCaptureSource start failed during device/item initialization: {}",
                  winrt::to_string(ex.message()));
         return std::unexpected(makeErrorCode(CaptureError::DeviceInitializationFailed));
@@ -86,13 +88,13 @@ std::expected<void, std::error_code> WinrtCaptureSource::start(const CaptureConf
         const std::expected<void, std::error_code> framePoolResult = session->initializeFramePool(
             [this](const auto& sender, const auto& args) { onFrameArrived(sender, args); });
         if (!framePoolResult) {
-            markFault();
+            markFault(framePoolResult.error());
             VF_ERROR("WinrtCaptureSource start failed during frame pool initialization: {}",
                      framePoolResult.error().message());
             return std::unexpected(framePoolResult.error());
         }
     } catch (const winrt::hresult_error& ex) {
-        markFault();
+        markFault(makeErrorCode(CaptureError::FramePoolInitializationFailed));
         VF_ERROR("WinrtCaptureSource start failed during frame pool initialization: {}",
                  winrt::to_string(ex.message()));
         return std::unexpected(makeErrorCode(CaptureError::FramePoolInitializationFailed));
@@ -101,13 +103,13 @@ std::expected<void, std::error_code> WinrtCaptureSource::start(const CaptureConf
     try {
         const std::expected<void, std::error_code> sessionResult = session->startSession();
         if (!sessionResult) {
-            markFault();
+            markFault(sessionResult.error());
             VF_ERROR("WinrtCaptureSource start failed during session start: {}",
                      sessionResult.error().message());
             return std::unexpected(sessionResult.error());
         }
     } catch (const winrt::hresult_error& ex) {
-        markFault();
+        markFault(makeErrorCode(CaptureError::SessionStartFailed));
         VF_ERROR("WinrtCaptureSource start failed during session start: {}",
                  winrt::to_string(ex.message()));
         return std::unexpected(makeErrorCode(CaptureError::SessionStartFailed));
@@ -116,6 +118,7 @@ std::expected<void, std::error_code> WinrtCaptureSource::start(const CaptureConf
     {
         std::scoped_lock lock(stateMutex);
         state = CaptureState::Running;
+        lastError.clear();
     }
 
     VF_INFO("WinrtCaptureSource started (display index: {})", config.preferredDisplayIndex);
@@ -146,6 +149,11 @@ std::expected<void, std::error_code> WinrtCaptureSource::stop() {
     {
         std::scoped_lock lock(stateMutex);
         state = CaptureState::Idle;
+        if (stopError) {
+            lastError = stopError;
+        } else {
+            lastError.clear();
+        }
     }
 
     if (stopError) {
@@ -155,6 +163,18 @@ std::expected<void, std::error_code> WinrtCaptureSource::stop() {
     VF_INFO("WinrtCaptureSource stopped");
     return {};
 #endif
+}
+
+std::expected<void, std::error_code> WinrtCaptureSource::poll() {
+    std::scoped_lock lock(stateMutex);
+    if (state == CaptureState::Fault) {
+        if (lastError) {
+            return std::unexpected(lastError);
+        }
+        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
+    }
+
+    return {};
 }
 
 #ifdef _WIN32
@@ -210,6 +230,12 @@ void WinrtCaptureSource::forwardFrameToSink(IWinrtFrameSink& sink,
     sink.onFrame(frame.texture.get(), frame.info);
 }
 
+void WinrtCaptureSource::markFault(const std::error_code& error) {
+    std::scoped_lock lock(stateMutex);
+    state = CaptureState::Fault;
+    lastError = error;
+}
+
 void WinrtCaptureSource::onFrameArrived(
     const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender,
     const winrt::Windows::Foundation::IInspectable& args) {
@@ -228,11 +254,14 @@ void WinrtCaptureSource::onFrameArrived(
 
         forwardFrameToSink(*frameSinkSnapshot, arrivedFrame.value());
     } catch (const winrt::hresult_error& ex) {
+        markFault(makeErrorCode(CaptureError::InvalidState));
         VF_WARN("WinrtCaptureSource frame processing failed with WinRT exception: {}",
                 winrt::to_string(ex.message()));
     } catch (const std::exception& ex) {
+        markFault(makeErrorCode(CaptureError::InvalidState));
         VF_WARN("WinrtCaptureSource frame processing failed with exception: {}", ex.what());
     } catch (...) {
+        markFault(makeErrorCode(CaptureError::InvalidState));
         VF_WARN("WinrtCaptureSource frame processing failed with unknown exception");
     }
 }

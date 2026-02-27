@@ -177,8 +177,6 @@ std::expected<void, std::error_code> MakcuMouseController::connect() {
     return {};
 }
 
-IMouseController::State MakcuMouseController::getState() const { return stateMachine->state(); }
-
 std::expected<void, std::error_code> MakcuMouseController::disconnect() {
     const bool shouldDisconnect = stateMachine->beginDisconnect();
     if (!shouldDisconnect) {

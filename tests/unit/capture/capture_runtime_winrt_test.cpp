@@ -16,12 +16,14 @@ class NonSinkInferenceProcessor final : public IInferenceProcessor {
   public:
     [[nodiscard]] std::expected<void, std::error_code> start() override { return {}; }
     [[nodiscard]] std::expected<void, std::error_code> stop() override { return {}; }
+    [[nodiscard]] std::expected<void, std::error_code> poll() override { return {}; }
 };
 
 class SinkInferenceProcessor final : public IInferenceProcessor, public IWinrtFrameSink {
   public:
     [[nodiscard]] std::expected<void, std::error_code> start() override { return {}; }
     [[nodiscard]] std::expected<void, std::error_code> stop() override { return {}; }
+    [[nodiscard]] std::expected<void, std::error_code> poll() override { return {}; }
     void onFrame(ID3D11Texture2D* texture, const CaptureFrameInfo& info) override {
         static_cast<void>(texture);
         static_cast<void>(info);
@@ -61,6 +63,13 @@ TEST(WinrtCaptureRuntimeTest, StopIsIdempotentWhenRuntimeIsIdle) {
 
     EXPECT_TRUE(first.has_value());
     EXPECT_TRUE(second.has_value());
+}
+
+TEST(WinrtCaptureRuntimeTest, PollSucceedsWhenNoFaultIsPresent) {
+    WinrtCaptureRuntime runtime;
+
+    const auto result = runtime.poll();
+    EXPECT_TRUE(result.has_value());
 }
 
 } // namespace

@@ -24,6 +24,7 @@ class WinrtCaptureRuntime final : public ICaptureRuntime {
 
     [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config) override;
     [[nodiscard]] std::expected<void, std::error_code> stop() override;
+    [[nodiscard]] std::expected<void, std::error_code> poll() override;
     [[nodiscard]] std::expected<void, std::error_code>
     attachInferenceProcessor(IInferenceProcessor& processor);
 
@@ -33,6 +34,7 @@ class WinrtCaptureRuntime final : public ICaptureRuntime {
     IWinrtFrameSink* frameSink = nullptr;
     std::unique_ptr<WinrtCaptureSource> source;
     std::unique_ptr<CaptureRuntimeStateMachine> runtimeState;
+    std::error_code lastError;
 };
 
 } // namespace vf

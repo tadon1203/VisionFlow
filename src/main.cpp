@@ -23,7 +23,9 @@ int main() {
     }
 
     vf::App app(configResult.value());
-    if (!app.run()) {
+    const auto runResult = app.run();
+    if (!runResult) {
+        VF_ERROR("App run failed: {}", runResult.error().message());
         return -1;
     }
     return 0;

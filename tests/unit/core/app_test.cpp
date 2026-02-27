@@ -21,7 +21,6 @@ namespace {
 class MockMouseController : public IMouseController {
   public:
     MOCK_METHOD((std::expected<void, std::error_code>), connect, (), (override));
-    MOCK_METHOD(State, getState, (), (const, override));
     MOCK_METHOD(bool, shouldRetryConnect, (const std::error_code& error), (const, override));
     MOCK_METHOD((std::expected<void, std::error_code>), disconnect, (), (override));
     MOCK_METHOD((std::expected<void, std::error_code>), move, (float dx, float dy), (override));
@@ -32,12 +31,14 @@ class MockCaptureRuntime : public ICaptureRuntime {
     MOCK_METHOD((std::expected<void, std::error_code>), start, (const CaptureConfig& config),
                 (override));
     MOCK_METHOD((std::expected<void, std::error_code>), stop, (), (override));
+    MOCK_METHOD((std::expected<void, std::error_code>), poll, (), (override));
 };
 
 class MockInferenceProcessor : public IInferenceProcessor {
   public:
     MOCK_METHOD((std::expected<void, std::error_code>), start, (), (override));
     MOCK_METHOD((std::expected<void, std::error_code>), stop, (), (override));
+    MOCK_METHOD((std::expected<void, std::error_code>), poll, (), (override));
 };
 
 class MockInferenceResultStore : public IInferenceResultStore {
@@ -46,12 +47,13 @@ class MockInferenceResultStore : public IInferenceResultStore {
     MOCK_METHOD((std::optional<InferenceResult>), take, (), (override));
 };
 
-TEST(AppTest, RunReturnsFalseWhenControllerIsNull) {
+TEST(AppTest, RunReturnsCompositionErrorWhenControllerIsNull) {
     App app(nullptr, AppConfig{});
-    EXPECT_FALSE(app.run());
+    const auto result = app.run();
+    EXPECT_FALSE(result.has_value());
 }
 
-TEST(AppTest, RunReturnsFalseWhenCaptureStartFails) {
+TEST(AppTest, RunReturnsCaptureStartErrorWhenCaptureStartFails) {
     auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
     auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
@@ -66,10 +68,11 @@ TEST(AppTest, RunReturnsFalseWhenCaptureStartFails) {
 
     App app(std::move(mouse), AppConfig{}, CaptureConfig{}, std::move(capture),
             std::move(inference), std::move(store));
-    EXPECT_FALSE(app.run());
+    const auto result = app.run();
+    EXPECT_FALSE(result.has_value());
 }
 
-TEST(AppTest, RunReturnsFalseWhenInferenceStartFails) {
+TEST(AppTest, RunReturnsInferenceStartErrorWhenInferenceStartFails) {
     auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
     auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
@@ -80,7 +83,8 @@ TEST(AppTest, RunReturnsFalseWhenInferenceStartFails) {
 
     App app(std::move(mouse), AppConfig{}, CaptureConfig{}, std::move(capture),
             std::move(inference), std::move(store));
-    EXPECT_FALSE(app.run());
+    const auto result = app.run();
+    EXPECT_FALSE(result.has_value());
 }
 
 TEST(AppTest, RunReturnsFalseWhenConnectFails) {
@@ -99,7 +103,11 @@ TEST(AppTest, RunReturnsFalseWhenConnectFails) {
     EXPECT_CALL(*capturePtr, start(testing::_))
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
 
-    EXPECT_CALL(*mockPtr, getState()).WillOnce(testing::Return(IMouseController::State::Idle));
+    EXPECT_CALL(*capturePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*inferencePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+
     EXPECT_CALL(*mockPtr, connect())
         .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
     EXPECT_CALL(*mockPtr, shouldRetryConnect(testing::_)).WillOnce(testing::Return(false));
@@ -113,7 +121,8 @@ TEST(AppTest, RunReturnsFalseWhenConnectFails) {
 
     App app(std::move(mock), AppConfig{}, CaptureConfig{}, std::move(capture), std::move(inference),
             std::move(store));
-    EXPECT_FALSE(app.run());
+    const auto result = app.run();
+    EXPECT_FALSE(result.has_value());
 }
 
 TEST(AppTest, RunRetriesConnectForRecoverableErrorThenFails) {
@@ -132,9 +141,13 @@ TEST(AppTest, RunRetriesConnectForRecoverableErrorThenFails) {
     EXPECT_CALL(*capturePtr, start(testing::_))
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
 
-    EXPECT_CALL(*mockPtr, getState())
-        .WillOnce(testing::Return(IMouseController::State::Idle))
-        .WillOnce(testing::Return(IMouseController::State::Idle));
+    EXPECT_CALL(*capturePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*inferencePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+
     EXPECT_CALL(*mockPtr, connect())
         .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::timed_out))))
         .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
@@ -151,7 +164,8 @@ TEST(AppTest, RunRetriesConnectForRecoverableErrorThenFails) {
 
     App app(std::move(mock), AppConfig{}, CaptureConfig{}, std::move(capture), std::move(inference),
             std::move(store));
-    EXPECT_FALSE(app.run());
+    const auto result = app.run();
+    EXPECT_FALSE(result.has_value());
 }
 
 TEST(AppTest, ShutdownOrderIsCaptureThenInferenceThenMouse) {
@@ -167,7 +181,10 @@ TEST(AppTest, ShutdownOrderIsCaptureThenInferenceThenMouse) {
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
     EXPECT_CALL(*capturePtr, start(testing::_))
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
-    EXPECT_CALL(*mousePtr, getState()).WillOnce(testing::Return(IMouseController::State::Idle));
+    EXPECT_CALL(*capturePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*inferencePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
     EXPECT_CALL(*mousePtr, connect())
         .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
     EXPECT_CALL(*mousePtr, shouldRetryConnect(testing::_)).WillOnce(testing::Return(false));
@@ -184,7 +201,8 @@ TEST(AppTest, ShutdownOrderIsCaptureThenInferenceThenMouse) {
 
     App app(std::move(mouse), AppConfig{}, CaptureConfig{}, std::move(capture),
             std::move(inference), std::move(store));
-    EXPECT_FALSE(app.run());
+    const auto result = app.run();
+    EXPECT_FALSE(result.has_value());
 }
 
 } // namespace

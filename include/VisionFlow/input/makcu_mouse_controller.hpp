@@ -30,7 +30,6 @@ class MakcuMouseController final : public IMouseController {
     ~MakcuMouseController() override;
 
     [[nodiscard]] std::expected<void, std::error_code> connect() override;
-    [[nodiscard]] State getState() const override;
     [[nodiscard]] std::expected<void, std::error_code> disconnect() override;
     [[nodiscard]] std::expected<void, std::error_code> move(float dx, float dy) override;
 

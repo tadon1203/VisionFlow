@@ -80,6 +80,7 @@ std::expected<void, std::error_code> OnnxDmlInferenceProcessor::start() {
         {
             std::scoped_lock lock(stateMutex);
             state = ProcessorState::Fault;
+            lastError = makeErrorCode(CaptureError::InvalidState);
         }
         return std::unexpected(makeErrorCode(CaptureError::InvalidState));
     }
@@ -92,6 +93,7 @@ std::expected<void, std::error_code> OnnxDmlInferenceProcessor::start() {
     {
         std::scoped_lock lock(stateMutex);
         state = ProcessorState::Running;
+        lastError.clear();
     }
 
     VF_INFO("OnnxDmlInferenceProcessor started");
@@ -133,6 +135,7 @@ std::expected<void, std::error_code> OnnxDmlInferenceProcessor::stop() {
     {
         std::scoped_lock lock(stateMutex);
         state = stopError ? ProcessorState::Fault : ProcessorState::Idle;
+        lastError = stopError;
     }
 
     if (stopError) {
@@ -144,11 +147,23 @@ std::expected<void, std::error_code> OnnxDmlInferenceProcessor::stop() {
 #endif
 }
 
+std::expected<void, std::error_code> OnnxDmlInferenceProcessor::poll() {
+    std::scoped_lock lock(stateMutex);
+    if (state == ProcessorState::Fault) {
+        if (lastError) {
+            return std::unexpected(lastError);
+        }
+        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
+    }
+    return {};
+}
+
 void OnnxDmlInferenceProcessor::transitionToFault(std::string_view reason,
                                                   std::error_code errorCode) {
     {
         std::scoped_lock lock(stateMutex);
         state = ProcessorState::Fault;
+        lastError = errorCode;
     }
     VF_ERROR("{}: {}", reason, errorCode.message());
 }

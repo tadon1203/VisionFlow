@@ -26,6 +26,7 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::start(const CaptureCon
     const auto beforeStartResult =
         runtimeState->beforeStart(frameSink != nullptr, source != nullptr);
     if (!beforeStartResult) {
+        lastError = beforeStartResult.error();
         return std::unexpected(beforeStartResult.error());
     }
 
@@ -33,10 +34,12 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::start(const CaptureCon
         source != nullptr ? source->start(config) : std::expected<void, std::error_code>{};
     if (!sourceStartResult) {
         runtimeState->onStartFailed();
+        lastError = sourceStartResult.error();
         return std::unexpected(sourceStartResult.error());
     }
 
     runtimeState->onStartSucceeded();
+    lastError.clear();
     return {};
 }
 
@@ -65,8 +68,29 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::stop() {
     runtimeState->onStopCompleted(!stopError);
 
     if (stopError) {
+        lastError = stopError;
         return std::unexpected(stopError);
     }
+
+    lastError.clear();
+    return {};
+}
+
+std::expected<void, std::error_code> WinrtCaptureRuntime::poll() {
+    if (source == nullptr) {
+        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
+    }
+
+    const auto sourcePollResult = source->poll();
+    if (!sourcePollResult) {
+        lastError = sourcePollResult.error();
+        return std::unexpected(sourcePollResult.error());
+    }
+
+    if (lastError) {
+        return std::unexpected(lastError);
+    }
+
     return {};
 }
 
@@ -81,7 +105,7 @@ WinrtCaptureRuntime::attachInferenceProcessor(IInferenceProcessor& processor) {
         return std::unexpected(beforeAttachResult.error());
     }
 
-    IWinrtFrameSink* sink = dynamic_cast<IWinrtFrameSink*>(&processor);
+    auto* sink = dynamic_cast<IWinrtFrameSink*>(&processor);
     if (sink == nullptr) {
         return std::unexpected(makeErrorCode(CaptureError::InferenceInterfaceNotSupported));
     }

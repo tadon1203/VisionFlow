@@ -33,6 +33,7 @@ class WinrtCaptureSource {
     void bindFrameSink(IWinrtFrameSink* frameSink);
     [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config);
     [[nodiscard]] std::expected<void, std::error_code> stop();
+    [[nodiscard]] std::expected<void, std::error_code> poll();
 
   private:
     enum class CaptureState : std::uint8_t {
@@ -53,6 +54,7 @@ class WinrtCaptureSource {
     [[nodiscard]] std::optional<ArrivedFrame> tryAcquireArrivedFrame(
         const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender);
     void forwardFrameToSink(IWinrtFrameSink& sink, const ArrivedFrame& frame) const;
+    void markFault(const std::error_code& error);
 
     void onFrameArrived(const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender,
                         const winrt::Windows::Foundation::IInspectable& args);
@@ -61,6 +63,7 @@ class WinrtCaptureSource {
     std::mutex stateMutex;
     CaptureState state = CaptureState::Idle;
     IWinrtFrameSink* frameSink = nullptr;
+    std::error_code lastError;
 
 #ifdef _WIN32
     std::unique_ptr<WinrtCaptureSession> session;

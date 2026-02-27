@@ -57,26 +57,4 @@ bool MakcuStateMachine::isReady() const {
     return currentState == MakcuControllerState::Ready;
 }
 
-IMouseController::State MakcuStateMachine::state() const {
-    std::scoped_lock lock(stateMutex);
-    return mapState(currentState);
-}
-
-IMouseController::State MakcuStateMachine::mapState(MakcuControllerState state) {
-    switch (state) {
-    case MakcuControllerState::Idle:
-        return IMouseController::State::Idle;
-    case MakcuControllerState::Opening:
-        return IMouseController::State::Opening;
-    case MakcuControllerState::Ready:
-        return IMouseController::State::Ready;
-    case MakcuControllerState::Stopping:
-        return IMouseController::State::Stopping;
-    case MakcuControllerState::Fault:
-        return IMouseController::State::Fault;
-    }
-
-    return IMouseController::State::Fault;
-}
-
 } // namespace vf

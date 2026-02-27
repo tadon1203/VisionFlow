@@ -42,6 +42,7 @@ class OnnxDmlInferenceProcessor final : public IInferenceProcessor, public IWinr
 
     [[nodiscard]] std::expected<void, std::error_code> start() override;
     [[nodiscard]] std::expected<void, std::error_code> stop() override;
+    [[nodiscard]] std::expected<void, std::error_code> poll() override;
 
     void onFrame(ID3D11Texture2D* texture, const CaptureFrameInfo& info) override;
 
@@ -60,6 +61,7 @@ class OnnxDmlInferenceProcessor final : public IInferenceProcessor, public IWinr
     InferenceConfig config;
     std::mutex stateMutex;
     ProcessorState state = ProcessorState::Idle;
+    std::error_code lastError;
 
     std::unique_ptr<FrameSequencer<InferenceFrame>> frameSequencer;
     std::atomic<std::uint64_t> frameSequence{0};

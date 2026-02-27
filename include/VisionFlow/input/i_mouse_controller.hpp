@@ -26,7 +26,6 @@ class IMouseController {
     virtual ~IMouseController() = default;
 
     [[nodiscard]] virtual std::expected<void, std::error_code> connect() = 0;
-    [[nodiscard]] virtual State getState() const = 0;
     [[nodiscard]] virtual bool shouldRetryConnect(const std::error_code& error) const {
         return shouldRetryConnectError(error);
     }

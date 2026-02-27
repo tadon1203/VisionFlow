@@ -19,6 +19,7 @@ class ICaptureRuntime {
     [[nodiscard]] virtual std::expected<void, std::error_code>
     start(const CaptureConfig& config) = 0;
     [[nodiscard]] virtual std::expected<void, std::error_code> stop() = 0;
+    [[nodiscard]] virtual std::expected<void, std::error_code> poll() = 0;
 };
 
 } // namespace vf
