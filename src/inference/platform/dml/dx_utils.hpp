@@ -129,6 +129,16 @@ toError(std::expected<void, DxCallError> result, CaptureError errorCode) {
     return std::unexpected(makeErrorCode(errorCode));
 }
 
+[[nodiscard]] inline std::expected<void, std::error_code> callD3d(HRESULT hr, const char* apiName,
+                                                                  CaptureError errorCode) {
+    return toError(checkD3d(hr, apiName), errorCode);
+}
+
+[[nodiscard]] inline std::expected<void, std::error_code> callWin32(bool ok, const char* apiName,
+                                                                    CaptureError errorCode) {
+    return toError(checkWin32(ok, apiName), errorCode);
+}
+
 [[nodiscard]] inline D3D12_HEAP_PROPERTIES makeDefaultHeapProperties() {
     return D3D12_HEAP_PROPERTIES{
         .Type = D3D12_HEAP_TYPE_DEFAULT,

@@ -4,6 +4,7 @@
 #include <expected>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <system_error>
 #include <thread>
 #include <utility>
@@ -12,6 +13,7 @@
 #include "VisionFlow/inference/i_inference_processor.hpp"
 #include "VisionFlow/inference/i_inference_result_store.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
+#include "core/expected_utils.hpp"
 
 namespace vf {
 
@@ -41,6 +43,12 @@ class NoopInferenceResultStore final : public IInferenceResultStore {
     [[nodiscard]] std::optional<InferenceResult> take() override { return std::nullopt; }
 };
 
+[[nodiscard]] std::expected<void, std::error_code>
+logErrorAndPropagate(std::string_view context, const std::error_code& error) {
+    VF_ERROR("{} ({})", context, error.message());
+    return std::unexpected(error);
+}
+
 } // namespace
 
 App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig)
@@ -61,14 +69,14 @@ std::expected<void, std::error_code> App::run() {
 
     const std::expected<void, std::error_code> setupResult = setup();
     if (!setupResult) {
-        return std::unexpected(setupResult.error());
+        return propagateFailure(setupResult);
     }
 
     const std::expected<void, std::error_code> loopResult = tickLoop();
     shutdown();
 
     if (!loopResult) {
-        return std::unexpected(loopResult.error());
+        return propagateFailure(loopResult);
     }
 
     VF_INFO("App run finished");
@@ -84,9 +92,8 @@ std::expected<void, std::error_code> App::setup() {
 
     const std::expected<void, std::error_code> inferenceStartResult = inferenceProcessor->start();
     if (!inferenceStartResult) {
-        VF_ERROR("App run failed: inference start failed ({})",
-                 inferenceStartResult.error().message());
-        return std::unexpected(inferenceStartResult.error());
+        return logErrorAndPropagate("App run failed: inference start failed",
+                                    inferenceStartResult.error());
     }
 
     const std::expected<void, std::error_code> captureStartResult =
@@ -98,7 +105,7 @@ std::expected<void, std::error_code> App::setup() {
             VF_WARN("App setup rollback warning: inference stop failed ({})",
                     inferenceStopResult.error().message());
         }
-        return std::unexpected(captureStartResult.error());
+        return propagateFailure(captureStartResult);
     }
 
     running = true;
@@ -110,7 +117,7 @@ std::expected<void, std::error_code> App::tickLoop() {
         const std::expected<void, std::error_code> tickResult = tickOnce();
         if (!tickResult) {
             running = false;
-            return std::unexpected(tickResult.error());
+            return propagateFailure(tickResult);
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -142,24 +149,22 @@ void App::shutdown() {
 std::expected<void, std::error_code> App::tickOnce() {
     const std::expected<void, std::error_code> capturePollResult = captureRuntime->poll();
     if (!capturePollResult) {
-        VF_ERROR("App loop failed: capture poll error ({})", capturePollResult.error().message());
-        return std::unexpected(capturePollResult.error());
+        return logErrorAndPropagate("App loop failed: capture poll error",
+                                    capturePollResult.error());
     }
 
     const std::expected<void, std::error_code> inferencePollResult = inferenceProcessor->poll();
     if (!inferencePollResult) {
-        VF_ERROR("App loop failed: inference poll error ({})",
-                 inferencePollResult.error().message());
-        return std::unexpected(inferencePollResult.error());
+        return logErrorAndPropagate("App loop failed: inference poll error",
+                                    inferencePollResult.error());
     }
 
     const std::expected<void, std::error_code> connectResult = mouseController->connect();
     if (!connectResult) {
         VF_WARN("App reconnect attempt failed: {}", connectResult.error().message());
         if (!mouseController->shouldRetryConnect(connectResult.error())) {
-            VF_ERROR("App run failed: unrecoverable connect error ({})",
-                     connectResult.error().message());
-            return std::unexpected(connectResult.error());
+            return logErrorAndPropagate("App run failed: unrecoverable connect error",
+                                        connectResult.error());
         }
 
         std::this_thread::sleep_for(appConfig.reconnectRetryMs);

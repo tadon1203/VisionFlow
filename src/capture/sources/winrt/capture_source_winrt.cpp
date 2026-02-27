@@ -5,6 +5,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string_view>
 #include <system_error>
 #include <utility>
 
@@ -12,6 +13,7 @@
 #include "VisionFlow/core/logger.hpp"
 #include "capture/sources/winrt/winrt_capture_session.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
+#include "core/expected_utils.hpp"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -20,6 +22,34 @@
 #endif
 
 namespace vf {
+
+#ifdef _WIN32
+namespace {
+
+template <typename Fn, typename MarkFaultFn>
+[[nodiscard]] std::expected<void, std::error_code>
+runCaptureStartStep(Fn&& stepFn, std::string_view stepName, CaptureError exceptionError,
+                    MarkFaultFn&& markFault) {
+    try {
+        const std::expected<void, std::error_code> stepResult = stepFn();
+        if (!stepResult) {
+            markFault(stepResult.error());
+            VF_ERROR("WinrtCaptureSource start failed during {}: {}", stepName,
+                     stepResult.error().message());
+            return std::unexpected(stepResult.error());
+        }
+        return {};
+    } catch (const winrt::hresult_error& ex) {
+        const std::error_code error = makeErrorCode(exceptionError);
+        markFault(error);
+        VF_ERROR("WinrtCaptureSource start failed during {}: {}", stepName,
+                 winrt::to_string(ex.message()));
+        return std::unexpected(error);
+    }
+}
+
+} // namespace
+#endif
 
 WinrtCaptureSource::WinrtCaptureSource()
 #ifdef _WIN32
@@ -68,51 +98,30 @@ std::expected<void, std::error_code> WinrtCaptureSource::start(const CaptureConf
         return std::unexpected(makeErrorCode(CaptureError::InvalidState));
     }
 
-    try {
-        const std::expected<void, std::error_code> initializeResult =
-            session->initializeDeviceAndItem(config.preferredDisplayIndex);
-        if (!initializeResult) {
-            markFault(initializeResult.error());
-            VF_ERROR("WinrtCaptureSource start failed during device/item initialization: {}",
-                     initializeResult.error().message());
-            return std::unexpected(initializeResult.error());
-        }
-    } catch (const winrt::hresult_error& ex) {
-        markFault(makeErrorCode(CaptureError::DeviceInitializationFailed));
-        VF_ERROR("WinrtCaptureSource start failed during device/item initialization: {}",
-                 winrt::to_string(ex.message()));
-        return std::unexpected(makeErrorCode(CaptureError::DeviceInitializationFailed));
+    const auto initializeStepResult = runCaptureStartStep(
+        [this, &config]() {
+            return session->initializeDeviceAndItem(config.preferredDisplayIndex);
+        },
+        "device/item initialization", CaptureError::DeviceInitializationFailed, markFault);
+    if (!initializeStepResult) {
+        return propagateFailure(initializeStepResult);
     }
 
-    try {
-        const std::expected<void, std::error_code> framePoolResult = session->initializeFramePool(
-            [this](const auto& sender, const auto& args) { onFrameArrived(sender, args); });
-        if (!framePoolResult) {
-            markFault(framePoolResult.error());
-            VF_ERROR("WinrtCaptureSource start failed during frame pool initialization: {}",
-                     framePoolResult.error().message());
-            return std::unexpected(framePoolResult.error());
-        }
-    } catch (const winrt::hresult_error& ex) {
-        markFault(makeErrorCode(CaptureError::FramePoolInitializationFailed));
-        VF_ERROR("WinrtCaptureSource start failed during frame pool initialization: {}",
-                 winrt::to_string(ex.message()));
-        return std::unexpected(makeErrorCode(CaptureError::FramePoolInitializationFailed));
+    const auto framePoolStepResult = runCaptureStartStep(
+        [this]() {
+            return session->initializeFramePool(
+                [this](const auto& sender, const auto& args) { onFrameArrived(sender, args); });
+        },
+        "frame pool initialization", CaptureError::FramePoolInitializationFailed, markFault);
+    if (!framePoolStepResult) {
+        return propagateFailure(framePoolStepResult);
     }
 
-    try {
-        const std::expected<void, std::error_code> sessionResult = session->startSession();
-        if (!sessionResult) {
-            markFault(sessionResult.error());
-            VF_ERROR("WinrtCaptureSource start failed during session start: {}",
-                     sessionResult.error().message());
-            return std::unexpected(sessionResult.error());
-        }
-    } catch (const winrt::hresult_error& ex) {
-        markFault(makeErrorCode(CaptureError::SessionStartFailed));
-        VF_ERROR("WinrtCaptureSource start failed during session start: {}",
-                 winrt::to_string(ex.message()));
-        return std::unexpected(makeErrorCode(CaptureError::SessionStartFailed));
+    const auto sessionStartResult =
+        runCaptureStartStep([this]() { return session->startSession(); }, "session start",
+                            CaptureError::SessionStartFailed, markFault);
+    if (!sessionStartResult) {
+        return propagateFailure(sessionStartResult);
     }
 
     {
@@ -167,14 +176,8 @@ std::expected<void, std::error_code> WinrtCaptureSource::stop() {
 
 std::expected<void, std::error_code> WinrtCaptureSource::poll() {
     std::scoped_lock lock(stateMutex);
-    if (state == CaptureState::Fault) {
-        if (lastError) {
-            return std::unexpected(lastError);
-        }
-        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
-    }
-
-    return {};
+    return pollFaultState(state == CaptureState::Fault, lastError,
+                          makeErrorCode(CaptureError::InvalidState));
 }
 
 #ifdef _WIN32

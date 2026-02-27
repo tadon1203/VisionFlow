@@ -9,6 +9,7 @@
 #include "capture/runtime/capture_runtime_state.hpp"
 #include "capture/sources/winrt/capture_source_winrt.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
+#include "core/expected_utils.hpp"
 
 namespace vf {
 
@@ -26,14 +27,14 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::start(const CaptureCon
     const auto beforeStartResult =
         runtimeState->beforeStart(frameSink != nullptr, source != nullptr);
     if (!beforeStartResult) {
-        return std::unexpected(beforeStartResult.error());
+        return propagateFailure(beforeStartResult);
     }
 
     const auto sourceStartResult =
         source != nullptr ? source->start(config) : std::expected<void, std::error_code>{};
     if (!sourceStartResult) {
         runtimeState->onStartFailed();
-        return std::unexpected(sourceStartResult.error());
+        return propagateFailure(sourceStartResult);
     }
 
     runtimeState->onStartSucceeded();
@@ -47,7 +48,7 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::stop() {
 
     const auto beforeStopResult = runtimeState->beforeStop();
     if (!beforeStopResult) {
-        return std::unexpected(beforeStopResult.error());
+        return propagateFailure(beforeStopResult);
     }
 
     if (source != nullptr) {
@@ -78,7 +79,7 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::poll() {
 
     const auto runtimePollResult = runtimeState->poll();
     if (!runtimePollResult) {
-        return std::unexpected(runtimePollResult.error());
+        return propagateFailure(runtimePollResult);
     }
 
     if (source == nullptr) {

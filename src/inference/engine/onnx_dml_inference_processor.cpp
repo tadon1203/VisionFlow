@@ -10,6 +10,7 @@
 
 #include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/core/logger.hpp"
+#include "core/expected_utils.hpp"
 
 namespace vf {
 std::expected<std::unique_ptr<OnnxDmlInferenceProcessor>, std::error_code>
@@ -149,13 +150,8 @@ std::expected<void, std::error_code> OnnxDmlInferenceProcessor::stop() {
 
 std::expected<void, std::error_code> OnnxDmlInferenceProcessor::poll() {
     std::scoped_lock lock(stateMutex);
-    if (state == ProcessorState::Fault) {
-        if (lastError) {
-            return std::unexpected(lastError);
-        }
-        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
-    }
-    return {};
+    return pollFaultState(state == ProcessorState::Fault, lastError,
+                          makeErrorCode(CaptureError::InvalidState));
 }
 
 void OnnxDmlInferenceProcessor::transitionToFault(std::string_view reason,

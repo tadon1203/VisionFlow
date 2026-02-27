@@ -112,29 +112,25 @@ class DmlImageProcessor::Impl {
         queue->ExecuteCommandLists(static_cast<UINT>(commandLists.size()), commandLists.data());
 
         const std::uint64_t completionFenceValue = preprocess.nextFenceValue();
-        const auto signalResult = dx_utils::toError(
-            dx_utils::checkD3d(queue->Signal(completionFence, completionFenceValue),
-                               "ID3D12CommandQueue::Signal(preprocess)"),
-            CaptureError::InferenceRunFailed);
+        const auto signalResult = dx_utils::callD3d(
+            queue->Signal(completionFence, completionFenceValue),
+            "ID3D12CommandQueue::Signal(preprocess)", CaptureError::InferenceRunFailed);
         if (!signalResult) {
             return std::unexpected(signalResult.error());
         }
 
         if (completionFence->GetCompletedValue() < completionFenceValue) {
-            const auto setEventResult = dx_utils::toError(
-                dx_utils::checkD3d(
-                    completionFence->SetEventOnCompletion(completionFenceValue, completionEvent),
-                    "ID3D12Fence::SetEventOnCompletion(preprocess)"),
-                CaptureError::InferenceRunFailed);
+            const auto setEventResult = dx_utils::callD3d(
+                completionFence->SetEventOnCompletion(completionFenceValue, completionEvent),
+                "ID3D12Fence::SetEventOnCompletion(preprocess)", CaptureError::InferenceRunFailed);
             if (!setEventResult) {
                 return std::unexpected(setEventResult.error());
             }
 
             const DWORD waitCode = WaitForSingleObject(completionEvent, INFINITE);
-            const auto waitEventResult =
-                dx_utils::toError(dx_utils::checkWin32(waitCode == WAIT_OBJECT_0,
-                                                       "WaitForSingleObject(preprocessFenceEvent)"),
-                                  CaptureError::InferenceRunFailed);
+            const auto waitEventResult = dx_utils::callWin32(
+                waitCode == WAIT_OBJECT_0, "WaitForSingleObject(preprocessFenceEvent)",
+                CaptureError::InferenceRunFailed);
             if (!waitEventResult) {
                 return std::unexpected(waitEventResult.error());
             }
