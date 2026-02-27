@@ -71,6 +71,7 @@ add_library(vf_core STATIC
     src/core/config_error.cpp
     src/core/config_loader.cpp
     src/core/logger.cpp
+    src/core/profiler.cpp
 )
 vf_apply_target_defaults(vf_core)
 target_link_libraries(vf_core

@@ -82,6 +82,11 @@ std::expected<winrt::com_ptr<ID3DBlob>, std::error_code> compileShader() {
 
 class DmlImageProcessorPreprocess::Impl {
   public:
+    struct TimestampPair {
+        std::uint64_t start = 0;
+        std::uint64_t end = 0;
+    };
+
     std::expected<void, std::error_code> initialize(ID3D12Device* device,
                                                     const InitConfig& config) {
         if (device == nullptr || config.outputBytes == 0 || config.outputElementCount == 0 ||
@@ -291,7 +296,43 @@ class DmlImageProcessorPreprocess::Impl {
             return std::unexpected(createEventResult.error());
         }
 
+        D3D12_QUERY_HEAP_DESC queryHeapDesc{};
+        queryHeapDesc.Count = 2;
+        queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+        queryHeapDesc.NodeMask = 0;
+
+        const auto createQueryHeapResult =
+            dx_utils::toError(dx_utils::checkD3d(d3d12Device->CreateQueryHeap(
+                                                     &queryHeapDesc, __uuidof(ID3D12QueryHeap),
+                                                     timestampQueryHeap.put_void()),
+                                                 "ID3D12Device::CreateQueryHeap(timestamp)"),
+                              InferenceError::InitializationFailed);
+        if (!createQueryHeapResult) {
+            return std::unexpected(createQueryHeapResult.error());
+        }
+
+        const D3D12_HEAP_PROPERTIES readbackHeap{
+            .Type = D3D12_HEAP_TYPE_READBACK,
+            .CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+            .MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN,
+            .CreationNodeMask = 1,
+            .VisibleNodeMask = 1,
+        };
+        const D3D12_RESOURCE_DESC readbackDesc =
+            dx_utils::makeRawBufferDesc(sizeof(TimestampPair), D3D12_RESOURCE_FLAG_NONE);
+        const auto createReadbackResult = dx_utils::toError(
+            dx_utils::checkD3d(d3d12Device->CreateCommittedResource(
+                                   &readbackHeap, D3D12_HEAP_FLAG_NONE, &readbackDesc,
+                                   D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                   __uuidof(ID3D12Resource), timestampReadbackBuffer.put_void()),
+                               "ID3D12Device::CreateCommittedResource(timestampReadback)"),
+            InferenceError::InitializationFailed);
+        if (!createReadbackResult) {
+            return std::unexpected(createReadbackResult.error());
+        }
+
         fenceValue = 0;
+        timestampAvailable = false;
         initialized = true;
         commit = true;
         rollback.dismiss();
@@ -371,9 +412,20 @@ class DmlImageProcessorPreprocess::Impl {
                                      D3D12_RESOURCE_STATE_COMMON,
                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
+        if (timestampQueryHeap != nullptr) {
+            commandList->EndQuery(timestampQueryHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, 0);
+        }
+
         const UINT dispatchX = (dstWidth + 7U) / 8U;
         const UINT dispatchY = (dstHeight + 7U) / 8U;
         commandList->Dispatch(dispatchX, dispatchY, 1U);
+
+        if (timestampQueryHeap != nullptr && timestampReadbackBuffer != nullptr) {
+            commandList->EndQuery(timestampQueryHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, 1);
+            commandList->ResolveQueryData(timestampQueryHeap.get(), D3D12_QUERY_TYPE_TIMESTAMP, 0,
+                                          2, timestampReadbackBuffer.get(), 0);
+            timestampAvailable = true;
+        }
 
         dx_utils::transitionResource(commandList.get(), inputResource,
                                      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
@@ -382,6 +434,43 @@ class DmlImageProcessorPreprocess::Impl {
                                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                                      D3D12_RESOURCE_STATE_COMMON);
         return {};
+    }
+
+    std::expected<std::uint64_t, std::error_code>
+    readLastGpuDurationUs(std::uint64_t timestampFrequency) {
+        if (!initialized || !timestampAvailable || timestampReadbackBuffer == nullptr ||
+            timestampFrequency == 0) {
+            return std::unexpected(makeErrorCode(InferenceError::InvalidState));
+        }
+
+        void* mapped = nullptr;
+        D3D12_RANGE readRange{0, sizeof(TimestampPair)};
+        const auto mapResult = dx_utils::toError(
+            dx_utils::checkD3d(timestampReadbackBuffer->Map(0, &readRange, &mapped),
+                               "ID3D12Resource::Map(timestampReadback)"),
+            InferenceError::RunFailed);
+        if (!mapResult) {
+            return std::unexpected(mapResult.error());
+        }
+
+        const auto unmap = dx_utils::makeScopeExit([this]() {
+            D3D12_RANGE writtenRange{0, 0};
+            timestampReadbackBuffer->Unmap(0, &writtenRange);
+        });
+
+        if (mapped == nullptr) {
+            return std::unexpected(makeErrorCode(InferenceError::RunFailed));
+        }
+
+        const auto* timestampPair = static_cast<const TimestampPair*>(mapped);
+        if (timestampPair->end < timestampPair->start) {
+            return std::unexpected(makeErrorCode(InferenceError::RunFailed));
+        }
+
+        const std::uint64_t deltaTicks = timestampPair->end - timestampPair->start;
+        const std::uint64_t microseconds = (deltaTicks * 1'000'000ULL) / timestampFrequency;
+        timestampAvailable = false;
+        return microseconds;
     }
 
     std::expected<void, std::error_code> closeAfterRecord() {
@@ -420,6 +509,8 @@ class DmlImageProcessorPreprocess::Impl {
         pipelineState = nullptr;
         rootSignature = nullptr;
         outputResource = nullptr;
+        timestampQueryHeap = nullptr;
+        timestampReadbackBuffer = nullptr;
         d3d12Device = nullptr;
         inputResource = nullptr;
         descriptorIncrement = 0;
@@ -428,6 +519,7 @@ class DmlImageProcessorPreprocess::Impl {
         dstWidth = 0;
         dstHeight = 0;
         fenceValue = 0;
+        timestampAvailable = false;
         initialized = false;
 
         completionEventRef.reset();
@@ -443,6 +535,8 @@ class DmlImageProcessorPreprocess::Impl {
     winrt::com_ptr<ID3D12CommandAllocator> commandAllocator;
     winrt::com_ptr<ID3D12GraphicsCommandList> commandList;
     winrt::com_ptr<ID3D12Fence> completionFenceRef;
+    winrt::com_ptr<ID3D12QueryHeap> timestampQueryHeap;
+    winrt::com_ptr<ID3D12Resource> timestampReadbackBuffer;
 
     ID3D12Resource* inputResource = nullptr;
     dx_utils::UniqueWin32Handle completionEventRef;
@@ -452,6 +546,7 @@ class DmlImageProcessorPreprocess::Impl {
     std::uint32_t dstWidth = 0;
     std::uint32_t dstHeight = 0;
     std::uint64_t fenceValue = 0;
+    bool timestampAvailable = false;
 };
 
 // NOLINTEND(cppcoreguidelines-pro-type-union-access)
@@ -494,6 +589,10 @@ HANDLE DmlImageProcessorPreprocess::getCompletionEvent() const {
     return impl->getCompletionEvent();
 }
 std::uint64_t DmlImageProcessorPreprocess::nextFenceValue() { return impl->nextFenceValue(); }
+std::expected<std::uint64_t, std::error_code>
+DmlImageProcessorPreprocess::readLastGpuDurationUs(std::uint64_t timestampFrequency) {
+    return impl->readLastGpuDurationUs(timestampFrequency);
+}
 ID3D12Resource* DmlImageProcessorPreprocess::getOutputResource() const {
     return impl->getOutputResource();
 }
@@ -537,6 +636,12 @@ DmlImageProcessorPreprocess::recordDispatch(std::uint32_t srcWidth, std::uint32_
 }
 
 std::expected<void, std::error_code> DmlImageProcessorPreprocess::closeAfterRecord() {
+    return std::unexpected(makeErrorCode(InferenceError::PlatformNotSupported));
+}
+
+std::expected<std::uint64_t, std::error_code>
+DmlImageProcessorPreprocess::readLastGpuDurationUs(std::uint64_t timestampFrequency) {
+    static_cast<void>(timestampFrequency);
     return std::unexpected(makeErrorCode(InferenceError::PlatformNotSupported));
 }
 

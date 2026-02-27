@@ -1,5 +1,6 @@
 #include "capture/sources/winrt/capture_source_winrt.hpp"
 
+#include <chrono>
 #include <exception>
 #include <expected>
 #include <memory>
@@ -51,9 +52,11 @@ runCaptureStartStep(Fn&& stepFn, std::string_view stepName, CaptureError excepti
 } // namespace
 #endif
 
-WinrtCaptureSource::WinrtCaptureSource()
+WinrtCaptureSource::WinrtCaptureSource(std::shared_ptr<IProfiler> profiler)
 #ifdef _WIN32
-    : session(std::make_unique<WinrtCaptureSession>())
+    : profiler(std::move(profiler)), session(std::make_unique<WinrtCaptureSession>())
+#else
+    : profiler(std::move(profiler))
 #endif
 {
 }
@@ -245,6 +248,7 @@ void WinrtCaptureSource::onFrameArrived(
     const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender,
     const winrt::Windows::Foundation::IInspectable& args) {
     static_cast<void>(args);
+    const auto arrivedStartedAt = std::chrono::steady_clock::now();
 
     IWinrtFrameSink* frameSinkSnapshot = trySnapshotRunningSink();
     if (frameSinkSnapshot == nullptr) {
@@ -254,10 +258,32 @@ void WinrtCaptureSource::onFrameArrived(
     try {
         const std::optional<ArrivedFrame> arrivedFrame = tryAcquireArrivedFrame(sender);
         if (!arrivedFrame.has_value()) {
+            if (profiler != nullptr) {
+                const auto now = std::chrono::steady_clock::now();
+                profiler->recordCpuUs(ProfileStage::CaptureFrameArrived,
+                                      static_cast<std::uint64_t>(
+                                          std::chrono::duration_cast<std::chrono::microseconds>(
+                                              now - arrivedStartedAt)
+                                              .count()));
+            }
             return;
         }
 
+        const auto forwardStartedAt = std::chrono::steady_clock::now();
         forwardFrameToSink(*frameSinkSnapshot, arrivedFrame.value());
+        if (profiler != nullptr) {
+            const auto forwardEndedAt = std::chrono::steady_clock::now();
+            profiler->recordCpuUs(
+                ProfileStage::CaptureFrameForward,
+                static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                               forwardEndedAt - forwardStartedAt)
+                                               .count()));
+            profiler->recordCpuUs(
+                ProfileStage::CaptureFrameArrived,
+                static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                               forwardEndedAt - arrivedStartedAt)
+                                               .count()));
+        }
     } catch (const winrt::hresult_error& ex) {
         markFault(makeErrorCode(CaptureError::InvalidState));
         VF_WARN("WinrtCaptureSource frame processing failed with WinRT exception: {}",

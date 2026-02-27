@@ -5,6 +5,7 @@
 #include <system_error>
 
 #include "VisionFlow/capture/i_capture_runtime.hpp"
+#include "VisionFlow/core/i_profiler.hpp"
 
 namespace vf {
 
@@ -15,7 +16,7 @@ class WinrtCaptureSource;
 
 class WinrtCaptureRuntime final : public ICaptureRuntime {
   public:
-    WinrtCaptureRuntime();
+    explicit WinrtCaptureRuntime(std::shared_ptr<IProfiler> profiler = nullptr);
     WinrtCaptureRuntime(const WinrtCaptureRuntime&) = delete;
     WinrtCaptureRuntime(WinrtCaptureRuntime&&) = delete;
     WinrtCaptureRuntime& operator=(const WinrtCaptureRuntime&) = delete;

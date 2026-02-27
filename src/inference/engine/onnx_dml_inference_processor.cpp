@@ -17,10 +17,12 @@ OnnxDmlInferenceProcessor::OnnxDmlInferenceProcessor(
     InferenceConfig config, std::unique_ptr<FrameSequencer<InferenceFrame>> frameSequencer,
     InferenceResultStore* resultStore, std::unique_ptr<OnnxDmlSession> session,
     std::unique_ptr<DmlImageProcessor> dmlImageProcessor,
-    std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker)
+    std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker,
+    std::shared_ptr<IProfiler> profiler)
     : config(std::move(config)), frameSequencer(std::move(frameSequencer)),
       resultStore(resultStore), session(std::move(session)),
-      dmlImageProcessor(std::move(dmlImageProcessor)), inferenceWorker(std::move(inferenceWorker)) {
+      dmlImageProcessor(std::move(dmlImageProcessor)), inferenceWorker(std::move(inferenceWorker)),
+      profiler(std::move(profiler)) {
     if (this->inferenceWorker != nullptr) {
         this->inferenceWorker->setFaultHandler(
             [this](std::string_view reason, std::error_code errorCode) {
