@@ -99,26 +99,10 @@ std::expected<void, std::error_code> OnnxDmlInferenceProcessor::stop() {
     }
     frameSequencer->clear();
 
-    std::error_code stopError;
-    if (session != nullptr) {
-        const std::expected<void, std::error_code> sessionStopResult = session->stop();
-        if (!sessionStopResult) {
-            stopError = sessionStopResult.error();
-        }
-    }
-
-    if (dmlImageProcessor != nullptr) {
-        dmlImageProcessor->shutdown();
-    }
-
     {
         std::scoped_lock lock(stateMutex);
-        state = stopError ? ProcessorState::Fault : ProcessorState::Idle;
-        lastError = stopError;
-    }
-
-    if (stopError) {
-        return std::unexpected(stopError);
+        state = ProcessorState::Idle;
+        lastError.clear();
     }
 
     VF_INFO("OnnxDmlInferenceProcessor stopped");

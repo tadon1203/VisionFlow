@@ -58,8 +58,13 @@ TEST(AppTest, RunPropagatesCaptureStartError) {
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
     EXPECT_CALL(*capture, start(testing::_))
         .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
-    EXPECT_CALL(*inference, stop())
-        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    {
+        testing::InSequence sequence;
+        EXPECT_CALL(*capture, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+        EXPECT_CALL(*inference, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    }
 
     App app(std::move(mouse), AppConfig{}, CaptureConfig{}, std::move(capture),
             std::move(inference), std::move(store));

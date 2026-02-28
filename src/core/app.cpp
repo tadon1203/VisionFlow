@@ -36,13 +36,6 @@ logErrorAndPropagate(std::string_view context, const std::error_code& error) {
 App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
          CaptureConfig captureConfig, std::unique_ptr<ICaptureSource> captureSource,
          std::unique_ptr<IInferenceProcessor> inferenceProcessor,
-         std::unique_ptr<InferenceResultStore> resultStore)
-    : App(std::move(mouseController), appConfig, captureConfig, std::move(captureSource),
-          std::move(inferenceProcessor), std::move(resultStore), nullptr) {}
-
-App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
-         CaptureConfig captureConfig, std::unique_ptr<ICaptureSource> captureSource,
-         std::unique_ptr<IInferenceProcessor> inferenceProcessor,
          std::unique_ptr<InferenceResultStore> resultStore, std::unique_ptr<IProfiler> profiler)
     : appConfig(appConfig), captureConfig(captureConfig),
       mouseController(std::move(mouseController)), captureSource(std::move(captureSource)),
@@ -54,13 +47,13 @@ App::~App() = default;
 std::expected<void, std::error_code> App::run() {
     VF_INFO("App run started");
 
-    const std::expected<void, std::error_code> setupResult = setup();
-    if (!setupResult) {
-        return propagateFailure(setupResult);
+    const std::expected<void, std::error_code> startResult = start();
+    if (!startResult) {
+        return propagateFailure(startResult);
     }
 
     const std::expected<void, std::error_code> loopResult = tickLoop();
-    shutdown();
+    stop();
 
     if (!loopResult) {
         return propagateFailure(loopResult);
@@ -70,7 +63,7 @@ std::expected<void, std::error_code> App::run() {
     return {};
 }
 
-std::expected<void, std::error_code> App::setup() {
+std::expected<void, std::error_code> App::start() {
     if (mouseController == nullptr || captureSource == nullptr || inferenceProcessor == nullptr ||
         resultStore == nullptr) {
         VF_ERROR("App run failed: required component is null");
@@ -87,6 +80,11 @@ std::expected<void, std::error_code> App::setup() {
         captureSource->start(captureConfig);
     if (!captureStartResult) {
         VF_ERROR("App run failed: capture start failed ({})", captureStartResult.error().message());
+        const std::expected<void, std::error_code> captureStopResult = captureSource->stop();
+        if (!captureStopResult) {
+            VF_WARN("App setup rollback warning: capture stop failed ({})",
+                    captureStopResult.error().message());
+        }
         const std::expected<void, std::error_code> inferenceStopResult = inferenceProcessor->stop();
         if (!inferenceStopResult) {
             VF_WARN("App setup rollback warning: inference stop failed ({})",
@@ -113,7 +111,7 @@ std::expected<void, std::error_code> App::tickLoop() {
     return {};
 }
 
-void App::shutdown() {
+void App::stop() {
     const std::expected<void, std::error_code> captureStopResult = captureSource->stop();
     if (!captureStopResult) {
         VF_WARN("App shutdown warning: capture stop failed ({})",
