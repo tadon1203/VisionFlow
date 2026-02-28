@@ -4,6 +4,7 @@ add_executable(VisionFlowUnitTests
     unit/capture/frame_sequencer_test.cpp
     unit/capture/inference_result_store_test.cpp
     unit/core/app_test.cpp
+    unit/core/aim_controller_test.cpp
     unit/core/config_loader_test.cpp
     unit/core/error_domain_contract_test.cpp
     unit/core/profiler_test.cpp
@@ -11,6 +12,7 @@ add_executable(VisionFlowUnitTests
     unit/inference/onnx_dml_session_test.cpp
     unit/inference/inference_postprocessor_test.cpp
     unit/inference/stub_inference_processor_test.cpp
+    unit/input/aim_activation_input_test.cpp
     unit/input/makcu_controller_test.cpp
     unit/input/mouse_error_test.cpp
 )

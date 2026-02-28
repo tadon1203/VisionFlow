@@ -63,6 +63,7 @@ function(vf_apply_target_defaults targetName)
 endfunction()
 
 add_library(vf_core STATIC
+    src/core/aim/aim_controller.cpp
     src/core/app.cpp
     src/core/app_error.cpp
     src/core/config/config_error.cpp
@@ -86,15 +87,23 @@ target_link_libraries(vf_platform_winrt
 )
 
 add_library(vf_input STATIC
+    src/input/aim_activation_input_factory.cpp
     src/input/mouse_error.cpp
     src/input/mouse_controller_factory.cpp
     src/input/makcu_mouse_controller.cpp
     src/input/makcu/makcu_ack_gate.cpp
     src/input/makcu/makcu_command_queue.cpp
     src/input/makcu/makcu_controller_state.cpp
+    src/input/platform/aim_activation_input_stub.cpp
     src/input/platform/serial_port_winrt.cpp
     src/input/platform/device_scanner_winrt.cpp
 )
+if (WIN32)
+    target_sources(vf_input
+        PRIVATE
+            src/input/platform/winrt_aim_activation_input.cpp
+    )
+endif()
 vf_apply_target_defaults(vf_input)
 target_link_libraries(vf_input
     PUBLIC
@@ -196,6 +205,7 @@ if (WIN32)
     target_link_libraries(vf_input
         PUBLIC
             windowsapp
+            xinput
     )
 
     target_link_libraries(vf_platform_winrt

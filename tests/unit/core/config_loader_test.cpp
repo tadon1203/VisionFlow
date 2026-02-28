@@ -33,7 +33,16 @@ TEST(ConfigLoaderTest, LoadsValidConfig) {
   "app": { "reconnectRetryMs": 500 },
   "makcu": { "remainderTtlMs": 200 },
   "capture": { "preferredDisplayIndex": 1 },
-  "inference": { "modelPath": "detector.onnx", "confidenceThreshold": 0.4 },
+  "inference": {
+    "modelPath": "detector.onnx",
+    "confidenceThreshold": 0.4
+  },
+  "aim": {
+    "aimStrength": 0.6,
+    "aimMaxStep": 110,
+    "triggerThreshold": 0.7,
+    "activationButtons": [["Mouse:Right", "Key:Shift", "Pad:LT"]]
+  },
   "profiler": { "enabled": true, "reportIntervalMs": 250 }
 })");
 
@@ -44,6 +53,11 @@ TEST(ConfigLoaderTest, LoadsValidConfig) {
     EXPECT_EQ(result->capture.preferredDisplayIndex, 1U);
     EXPECT_EQ(result->inference.modelPath, "detector.onnx");
     EXPECT_FLOAT_EQ(result->inference.confidenceThreshold, 0.4F);
+    EXPECT_FLOAT_EQ(result->aim.aimStrength, 0.6F);
+    EXPECT_EQ(result->aim.aimMaxStep, 110);
+    EXPECT_FLOAT_EQ(result->aim.triggerThreshold, 0.7F);
+    ASSERT_EQ(result->aim.activationButtons.size(), 1U);
+    ASSERT_EQ(result->aim.activationButtons.front().size(), 3U);
     EXPECT_TRUE(result->profiler.enabled);
     EXPECT_EQ(result->profiler.reportIntervalMs, std::chrono::milliseconds(250));
 
@@ -61,6 +75,10 @@ TEST(ConfigLoaderTest, CreatesDefaultConfigForMissingFile) {
     EXPECT_EQ(result->capture.preferredDisplayIndex, 0U);
     EXPECT_EQ(result->inference.modelPath, "model.onnx");
     EXPECT_FLOAT_EQ(result->inference.confidenceThreshold, 0.25F);
+    EXPECT_FLOAT_EQ(result->aim.aimStrength, 0.4F);
+    EXPECT_EQ(result->aim.aimMaxStep, 127);
+    EXPECT_FLOAT_EQ(result->aim.triggerThreshold, 0.5F);
+    EXPECT_TRUE(result->aim.activationButtons.empty());
     EXPECT_FALSE(result->profiler.enabled);
     EXPECT_EQ(result->profiler.reportIntervalMs, std::chrono::milliseconds(1000));
     EXPECT_TRUE(std::filesystem::exists(path));
@@ -167,6 +185,10 @@ TEST(ConfigLoaderTest, UsesDefaultCaptureConfigWhenCaptureSectionMissing) {
     EXPECT_EQ(result->capture.preferredDisplayIndex, 0U);
     EXPECT_EQ(result->inference.modelPath, "model.onnx");
     EXPECT_FLOAT_EQ(result->inference.confidenceThreshold, 0.25F);
+    EXPECT_FLOAT_EQ(result->aim.aimStrength, 0.4F);
+    EXPECT_EQ(result->aim.aimMaxStep, 127);
+    EXPECT_FLOAT_EQ(result->aim.triggerThreshold, 0.5F);
+    EXPECT_TRUE(result->aim.activationButtons.empty());
 
     static_cast<void>(std::filesystem::remove(path));
 }
@@ -215,6 +237,10 @@ TEST(ConfigLoaderTest, UsesDefaultInferenceConfidenceThresholdWhenMissing) {
     const auto result = loadConfig(path);
     ASSERT_TRUE(result.has_value());
     EXPECT_FLOAT_EQ(result->inference.confidenceThreshold, 0.25F);
+    EXPECT_FLOAT_EQ(result->aim.aimStrength, 0.4F);
+    EXPECT_EQ(result->aim.aimMaxStep, 127);
+    EXPECT_FLOAT_EQ(result->aim.triggerThreshold, 0.5F);
+    EXPECT_TRUE(result->aim.activationButtons.empty());
 
     static_cast<void>(std::filesystem::remove(path));
 }
@@ -242,6 +268,150 @@ TEST(ConfigLoaderTest, ReturnsOutOfRangeForInferenceConfidenceThreshold) {
   "app": { "reconnectRetryMs": 500 },
   "makcu": { "remainderTtlMs": 200 },
   "inference": { "modelPath": "model.onnx", "confidenceThreshold": 1.1 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::OutOfRange));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsInvalidTypeForAimStrength) {
+    const auto path = makeTempPath("visionflow_config_aim_strength_invalid_type.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "aim": { "aimStrength": "0.4" }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::InvalidType));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsOutOfRangeForAimStrength) {
+    const auto path = makeTempPath("visionflow_config_aim_strength_out_of_range.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "aim": { "aimStrength": 0.0 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::OutOfRange));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsInvalidTypeForAimMaxStep) {
+    const auto path = makeTempPath("visionflow_config_aim_max_step_invalid_type.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "aim": { "aimMaxStep": 2.5 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::InvalidType));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsOutOfRangeForAimMaxStep) {
+    const auto path = makeTempPath("visionflow_config_aim_max_step_out_of_range.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "aim": { "aimMaxStep": 128 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::OutOfRange));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsInvalidTypeForAimTriggerThreshold) {
+    const auto path = makeTempPath("visionflow_config_aim_trigger_threshold_invalid_type.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "aim": { "triggerThreshold": "0.5" }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::InvalidType));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsOutOfRangeForAimTriggerThreshold) {
+    const auto path = makeTempPath("visionflow_config_aim_trigger_threshold_out_of_range.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "aim": { "triggerThreshold": 1.1 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::OutOfRange));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsInvalidTypeForAimActivationButtons) {
+    const auto path = makeTempPath("visionflow_config_aim_activation_buttons_invalid_type.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "aim": { "activationButtons": "Mouse:Right" }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::InvalidType));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsOutOfRangeForAimActivationButtonsMultipleRows) {
+    const auto path = makeTempPath("visionflow_config_aim_activation_buttons_multiple_rows.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "aim": { "activationButtons": [["Mouse:Right"], ["Key:Shift"]] }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::OutOfRange));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsOutOfRangeForUnknownAimActivationButtonToken) {
+    const auto path = makeTempPath("visionflow_config_aim_activation_buttons_unknown_token.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "aim": { "activationButtons": [["Mouse:Unknown"]] }
 })");
 
     const auto result = loadConfig(path);

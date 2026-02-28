@@ -13,6 +13,7 @@
 #include "VisionFlow/core/config.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
 #include "VisionFlow/inference/inference_result_store.hpp"
+#include "VisionFlow/input/i_aim_activation_input.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
 
 namespace vf {
@@ -41,8 +42,13 @@ class MockInferenceProcessor : public IInferenceProcessor {
     MOCK_METHOD((std::expected<void, std::error_code>), poll, (), (override));
 };
 
+class MockAimActivationInput : public IAimActivationInput {
+  public:
+    MOCK_METHOD(bool, isAimActivationPressed, (), (const, override));
+};
+
 TEST(AppTest, RunReturnsInvalidArgumentWhenControllerIsNull) {
-    App app(nullptr, AppConfig{}, CaptureConfig{}, nullptr, nullptr, nullptr);
+    App app(nullptr, AppConfig{}, CaptureConfig{}, AimConfig{}, nullptr, nullptr, nullptr);
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());
     EXPECT_EQ(result.error(), std::make_error_code(std::errc::invalid_argument));
@@ -66,7 +72,7 @@ TEST(AppTest, RunPropagatesCaptureStartError) {
             .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
     }
 
-    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, std::move(capture),
+    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, AimConfig{}, std::move(capture),
             std::move(inference), std::move(store));
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());
@@ -82,7 +88,7 @@ TEST(AppTest, RunPropagatesInferenceStartError) {
     EXPECT_CALL(*inference, start())
         .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
 
-    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, std::move(capture),
+    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, AimConfig{}, std::move(capture),
             std::move(inference), std::move(store));
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());
@@ -112,7 +118,7 @@ TEST(AppTest, RunPropagatesCapturePollError) {
     EXPECT_CALL(*mouse, disconnect())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
 
-    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, std::move(capture),
+    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, AimConfig{}, std::move(capture),
             std::move(inference), std::move(store));
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());
@@ -149,8 +155,8 @@ TEST(AppTest, RunReturnsFalseWhenConnectFails) {
     EXPECT_CALL(*mockPtr, disconnect())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
 
-    App app(std::move(mock), AppConfig{}, CaptureConfig{}, std::move(capture), std::move(inference),
-            std::move(store));
+    App app(std::move(mock), AppConfig{}, CaptureConfig{}, AimConfig{}, std::move(capture),
+            std::move(inference), std::move(store));
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());
     EXPECT_EQ(result.error(), std::make_error_code(std::errc::io_error));
@@ -191,10 +197,280 @@ TEST(AppTest, RunRetriesConnectForRecoverableErrorThenFails) {
     EXPECT_CALL(*mockPtr, disconnect())
         .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
 
-    App app(std::move(mock), AppConfig{}, CaptureConfig{}, std::move(capture), std::move(inference),
-            std::move(store));
+    App app(std::move(mock), AppConfig{}, CaptureConfig{}, AimConfig{}, std::move(capture),
+            std::move(inference), std::move(store));
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());
+}
+
+TEST(AppTest, RunAppliesCenterPriorityMoveAndPropagatesMoveError) {
+    auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
+    auto* mousePtr = mouse.get();
+    auto aimInput = std::make_unique<testing::StrictMock<MockAimActivationInput>>();
+    auto* aimInputPtr = aimInput.get();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureSource>>();
+    auto* capturePtr = capture.get();
+    auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
+    auto* inferencePtr = inference.get();
+    auto store = std::make_unique<InferenceResultStore>();
+
+    InferenceResult result;
+    result.detections.emplace_back(InferenceDetection{
+        .centerX = 500.0F,
+        .centerY = 320.0F,
+        .width = 20.0F,
+        .height = 20.0F,
+        .score = 0.95F,
+        .classId = 0,
+    });
+    result.detections.emplace_back(InferenceDetection{
+        .centerX = 330.0F,
+        .centerY = 320.0F,
+        .width = 20.0F,
+        .height = 20.0F,
+        .score = 0.40F,
+        .classId = 0,
+    });
+    store->publish(std::move(result));
+
+    EXPECT_CALL(*inferencePtr, start())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, start(testing::_))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*inferencePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*mousePtr, connect())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*aimInputPtr, isAimActivationPressed()).WillOnce(testing::Return(true));
+    EXPECT_CALL(*mousePtr, move(4.0F, 0.0F))
+        .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
+
+    {
+        testing::InSequence sequence;
+        EXPECT_CALL(*capturePtr, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+        EXPECT_CALL(*inferencePtr, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+        EXPECT_CALL(*mousePtr, disconnect())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    }
+
+    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, AimConfig{}, std::move(capture),
+            std::move(inference), std::move(store), std::move(aimInput));
+    const auto runResult = app.run();
+    ASSERT_FALSE(runResult.has_value());
+    EXPECT_EQ(runResult.error(), std::make_error_code(std::errc::io_error));
+}
+
+TEST(AppTest, RunClampsMoveByAimMaxStep) {
+    auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
+    auto* mousePtr = mouse.get();
+    auto aimInput = std::make_unique<testing::StrictMock<MockAimActivationInput>>();
+    auto* aimInputPtr = aimInput.get();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureSource>>();
+    auto* capturePtr = capture.get();
+    auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
+    auto* inferencePtr = inference.get();
+    auto store = std::make_unique<InferenceResultStore>();
+
+    InferenceResult result;
+    result.detections.emplace_back(InferenceDetection{
+        .centerX = 640.0F,
+        .centerY = 0.0F,
+        .width = 20.0F,
+        .height = 20.0F,
+        .score = 0.90F,
+        .classId = 0,
+    });
+    store->publish(std::move(result));
+
+    EXPECT_CALL(*inferencePtr, start())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, start(testing::_))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*inferencePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*mousePtr, connect())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*aimInputPtr, isAimActivationPressed()).WillOnce(testing::Return(true));
+    EXPECT_CALL(*mousePtr, move(127.0F, -127.0F))
+        .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
+
+    {
+        testing::InSequence sequence;
+        EXPECT_CALL(*capturePtr, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+        EXPECT_CALL(*inferencePtr, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+        EXPECT_CALL(*mousePtr, disconnect())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    }
+
+    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, AimConfig{}, std::move(capture),
+            std::move(inference), std::move(store), std::move(aimInput));
+    const auto runResult = app.run();
+    ASSERT_FALSE(runResult.has_value());
+    EXPECT_EQ(runResult.error(), std::make_error_code(std::errc::io_error));
+}
+
+TEST(AppTest, RunDoesNotMoveWhenNoDetections) {
+    auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
+    auto* mousePtr = mouse.get();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureSource>>();
+    auto* capturePtr = capture.get();
+    auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
+    auto* inferencePtr = inference.get();
+    auto store = std::make_unique<InferenceResultStore>();
+
+    store->publish(InferenceResult{});
+
+    EXPECT_CALL(*inferencePtr, start())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, start(testing::_))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*inferencePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*mousePtr, connect())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}))
+        .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
+    EXPECT_CALL(*mousePtr, move(testing::_, testing::_)).Times(0);
+    EXPECT_CALL(*mousePtr, shouldRetryConnect(testing::_)).WillOnce(testing::Return(false));
+
+    {
+        testing::InSequence sequence;
+        EXPECT_CALL(*capturePtr, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+        EXPECT_CALL(*inferencePtr, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+        EXPECT_CALL(*mousePtr, disconnect())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    }
+
+    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, AimConfig{}, std::move(capture),
+            std::move(inference), std::move(store));
+    const auto runResult = app.run();
+    ASSERT_FALSE(runResult.has_value());
+    EXPECT_EQ(runResult.error(), std::make_error_code(std::errc::io_error));
+}
+
+TEST(AppTest, RunSkipsMoveWhenRoundedDeltaIsZero) {
+    auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
+    auto* mousePtr = mouse.get();
+    auto aimInput = std::make_unique<testing::StrictMock<MockAimActivationInput>>();
+    auto* aimInputPtr = aimInput.get();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureSource>>();
+    auto* capturePtr = capture.get();
+    auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
+    auto* inferencePtr = inference.get();
+    auto store = std::make_unique<InferenceResultStore>();
+
+    InferenceResult result;
+    result.detections.emplace_back(InferenceDetection{
+        .centerX = 320.2F,
+        .centerY = 319.9F,
+        .width = 20.0F,
+        .height = 20.0F,
+        .score = 0.90F,
+        .classId = 0,
+    });
+    store->publish(std::move(result));
+
+    EXPECT_CALL(*inferencePtr, start())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, start(testing::_))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*inferencePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*mousePtr, connect())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}))
+        .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
+    EXPECT_CALL(*aimInputPtr, isAimActivationPressed()).WillOnce(testing::Return(true));
+    EXPECT_CALL(*mousePtr, move(testing::_, testing::_)).Times(0);
+    EXPECT_CALL(*mousePtr, shouldRetryConnect(testing::_)).WillOnce(testing::Return(false));
+
+    {
+        testing::InSequence sequence;
+        EXPECT_CALL(*capturePtr, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+        EXPECT_CALL(*inferencePtr, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+        EXPECT_CALL(*mousePtr, disconnect())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    }
+
+    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, AimConfig{}, std::move(capture),
+            std::move(inference), std::move(store), std::move(aimInput));
+    const auto runResult = app.run();
+    ASSERT_FALSE(runResult.has_value());
+    EXPECT_EQ(runResult.error(), std::make_error_code(std::errc::io_error));
+}
+
+TEST(AppTest, RunDoesNotMoveWhenAimActivationKeyIsNotPressed) {
+    auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
+    auto* mousePtr = mouse.get();
+    auto aimInput = std::make_unique<testing::StrictMock<MockAimActivationInput>>();
+    auto* aimInputPtr = aimInput.get();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureSource>>();
+    auto* capturePtr = capture.get();
+    auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
+    auto* inferencePtr = inference.get();
+    auto store = std::make_unique<InferenceResultStore>();
+
+    InferenceResult result;
+    result.detections.emplace_back(InferenceDetection{
+        .centerX = 400.0F,
+        .centerY = 320.0F,
+        .width = 20.0F,
+        .height = 20.0F,
+        .score = 0.8F,
+        .classId = 0,
+    });
+    store->publish(std::move(result));
+
+    EXPECT_CALL(*inferencePtr, start())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, start(testing::_))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*capturePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*inferencePtr, poll())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}))
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    EXPECT_CALL(*mousePtr, connect())
+        .WillOnce(testing::Return(std::expected<void, std::error_code>{}))
+        .WillOnce(testing::Return(std::unexpected(std::make_error_code(std::errc::io_error))));
+    EXPECT_CALL(*aimInputPtr, isAimActivationPressed()).WillOnce(testing::Return(false));
+    EXPECT_CALL(*mousePtr, move(testing::_, testing::_)).Times(0);
+    EXPECT_CALL(*mousePtr, shouldRetryConnect(testing::_)).WillOnce(testing::Return(false));
+
+    {
+        testing::InSequence sequence;
+        EXPECT_CALL(*capturePtr, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+        EXPECT_CALL(*inferencePtr, stop())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+        EXPECT_CALL(*mousePtr, disconnect())
+            .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
+    }
+
+    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, AimConfig{}, std::move(capture),
+            std::move(inference), std::move(store), std::move(aimInput));
+    const auto runResult = app.run();
+    ASSERT_FALSE(runResult.has_value());
+    EXPECT_EQ(runResult.error(), std::make_error_code(std::errc::io_error));
 }
 
 TEST(AppTest, ShutdownOrderIsCaptureThenInferenceThenMouse) {
@@ -228,7 +504,7 @@ TEST(AppTest, ShutdownOrderIsCaptureThenInferenceThenMouse) {
             .WillOnce(testing::Return(std::expected<void, std::error_code>{}));
     }
 
-    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, std::move(capture),
+    App app(std::move(mouse), AppConfig{}, CaptureConfig{}, AimConfig{}, std::move(capture),
             std::move(inference), std::move(store));
     const auto result = app.run();
     EXPECT_FALSE(result.has_value());

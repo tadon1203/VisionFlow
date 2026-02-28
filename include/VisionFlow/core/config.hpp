@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace vf {
 
@@ -23,6 +24,13 @@ struct InferenceConfig {
     float confidenceThreshold{0.25F};
 };
 
+struct AimConfig {
+    float aimStrength{0.4F};
+    std::int32_t aimMaxStep{127};
+    float triggerThreshold{0.5F};
+    std::vector<std::vector<std::string>> activationButtons{};
+};
+
 struct ProfilerConfig {
     bool enabled{false};
     std::chrono::milliseconds reportIntervalMs{1000};
@@ -33,6 +41,7 @@ struct VisionFlowConfig {
     MakcuConfig makcu;
     CaptureConfig capture;
     InferenceConfig inference;
+    AimConfig aim;
     ProfilerConfig profiler;
 };
 

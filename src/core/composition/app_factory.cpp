@@ -6,6 +6,7 @@
 #include "VisionFlow/core/logger.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
 #include "VisionFlow/inference/inference_result_store.hpp"
+#include "VisionFlow/input/aim_activation_input_factory.hpp"
 #include "VisionFlow/input/mouse_controller_factory.hpp"
 #include "capture/sources/stub/capture_source_stub.hpp"
 #include "core/profiler.hpp"
@@ -60,8 +61,9 @@ AppComposition createAppComposition(const VisionFlowConfig& config) {
 } // namespace
 
 App::App(const VisionFlowConfig& config)
-    : appConfig(config.app), captureConfig(config.capture),
-      mouseController(createMouseController(config)) {
+    : appConfig(config.app), captureConfig(config.capture), aimConfig(config.aim),
+      mouseController(createMouseController(config)),
+      aimActivationInput(createAimActivationInput(config)) {
     AppComposition composition = createAppComposition(config);
     captureSource = std::move(composition.captureSource);
     inferenceProcessor = std::move(composition.inferenceProcessor);
