@@ -8,6 +8,7 @@
 #include <system_error>
 
 #include "VisionFlow/core/i_profiler.hpp"
+#include "inference/engine/i_inference_image_processor.hpp"
 
 #ifdef _WIN32
 struct ID3D11Texture2D;
@@ -20,31 +21,11 @@ namespace vf {
 
 class OnnxDmlSession;
 
-class DmlImageProcessor {
+class DmlImageProcessor final : public IInferenceImageProcessor {
   public:
-    struct InitializeResult {
-#ifdef _WIN32
-        IDMLDevice* dmlDevice = nullptr;
-        ID3D12CommandQueue* commandQueue = nullptr;
-#else
-        void* dmlDevice = nullptr;
-        void* commandQueue = nullptr;
-#endif
-    };
-
-    struct DispatchResult {
-#ifdef _WIN32
-        ID3D12Resource* outputResource = nullptr;
-#else
-        void* outputResource = nullptr;
-#endif
-        std::size_t outputBytes = 0;
-    };
-
-    enum class EnqueueStatus : std::uint8_t {
-        Submitted,
-        SkippedBusy,
-    };
+    using InitializeResult = IInferenceImageProcessor::InitializeResult;
+    using DispatchResult = IInferenceImageProcessor::DispatchResult;
+    using EnqueueStatus = IInferenceImageProcessor::EnqueueStatus;
 
     explicit DmlImageProcessor(OnnxDmlSession& session, IProfiler* profiler = nullptr);
     DmlImageProcessor(const DmlImageProcessor&) = delete;
@@ -55,17 +36,18 @@ class DmlImageProcessor {
 
 #ifdef _WIN32
     [[nodiscard]] std::expected<InitializeResult, std::error_code>
-    initialize(ID3D11Texture2D* sourceTexture);
+    initialize(ID3D11Texture2D* sourceTexture) override;
     [[nodiscard]] std::expected<EnqueueStatus, std::error_code>
-    enqueuePreprocess(ID3D11Texture2D* frameTexture, std::uint64_t fenceValue);
+    enqueuePreprocess(ID3D11Texture2D* frameTexture, std::uint64_t fenceValue) override;
     [[nodiscard]] std::expected<std::optional<DispatchResult>, std::error_code>
-    tryCollectPreprocessResult();
+    tryCollectPreprocessResult() override;
 #else
-    [[nodiscard]] std::expected<InitializeResult, std::error_code> initialize(void* sourceTexture);
+    [[nodiscard]] std::expected<InitializeResult, std::error_code>
+    initialize(void* sourceTexture) override;
     [[nodiscard]] std::expected<EnqueueStatus, std::error_code>
-    enqueuePreprocess(void* frameTexture, std::uint64_t fenceValue);
+    enqueuePreprocess(void* frameTexture, std::uint64_t fenceValue) override;
     [[nodiscard]] std::expected<std::optional<DispatchResult>, std::error_code>
-    tryCollectPreprocessResult();
+    tryCollectPreprocessResult() override;
 #endif
 
     void shutdown();

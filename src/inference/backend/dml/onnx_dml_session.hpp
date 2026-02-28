@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "VisionFlow/inference/inference_result.hpp"
+#include "inference/engine/i_inference_session.hpp"
 
 #if defined(_WIN32) && defined(VF_HAS_ONNXRUNTIME_DML) && VF_HAS_ONNXRUNTIME_DML
 #include <onnxruntime/core/providers/dml/dml_provider_factory.h>
@@ -27,7 +28,7 @@ struct IDMLDevice;
 
 namespace vf {
 
-class OnnxDmlSession {
+class OnnxDmlSession final : public IInferenceSession {
   public:
     struct ModelMetadata {
         std::string inputName;
@@ -65,10 +66,14 @@ class OnnxDmlSession {
 
     [[nodiscard]] const ModelMetadata& metadata() const;
 
-#if defined(_WIN32) && defined(VF_HAS_ONNXRUNTIME_DML) && VF_HAS_ONNXRUNTIME_DML
+#ifdef _WIN32
     [[nodiscard]] std::expected<InferenceResult, std::error_code>
     runWithGpuInput(std::int64_t frameTimestamp100ns, ID3D12Resource* resource,
-                    std::size_t resourceBytes);
+                    std::size_t resourceBytes) override;
+#else
+    [[nodiscard]] std::expected<InferenceResult, std::error_code>
+    runWithGpuInput(std::int64_t frameTimestamp100ns, void* resource,
+                    std::size_t resourceBytes) override;
 #endif
 
   private:

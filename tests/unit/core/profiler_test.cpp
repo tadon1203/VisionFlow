@@ -50,6 +50,24 @@ TEST(ProfilerTest, MaybeReportEmitsAndResetsCounters) {
     EXPECT_EQ(lines.size(), 1U);
 }
 
+TEST(ProfilerTest, ReportIncludesInferencePostprocessStage) {
+    ProfilerConfig config;
+    config.enabled = true;
+    config.reportIntervalMs = std::chrono::milliseconds(1000);
+
+    std::vector<std::string> lines;
+    Profiler profiler(config, [&lines](const std::string& line) { lines.push_back(line); });
+
+    const auto base = std::chrono::steady_clock::time_point{};
+    profiler.recordCpuUs(ProfileStage::InferencePostprocess, 77);
+    profiler.maybeReport(base);
+    profiler.maybeReport(base + std::chrono::milliseconds(1000));
+
+    ASSERT_EQ(lines.size(), 1U);
+    const std::string& report = lines.front();
+    EXPECT_NE(report.find("inference.postprocess count=1 avg=77us max=77us"), std::string::npos);
+}
+
 TEST(ProfilerTest, FlushReportEmitsCurrentSnapshot) {
     ProfilerConfig config;
     config.enabled = true;

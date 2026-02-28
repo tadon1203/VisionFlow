@@ -12,10 +12,10 @@ If you're new to the repo, this order minimizes context switching:
 1. `docs/ARCHITECTURE.md` (system map + data/control flow)
 2. `src/main.cpp` (process lifetime + config/platform init)
 3. `src/core/app.cpp` (main loop + shutdown + error propagation)
-4. `src/core/app_factory.cpp` (composition root / wiring)
+4. `src/core/composition/app_factory.cpp` (composition root / wiring)
 5. Domain entrypoints:
   - Capture: `src/capture/sources/winrt/`
-  - Inference: `src/inference/api/`, `src/inference/engine/`, `src/inference/platform/dml/`
+  - Inference: `src/inference/composition/`, `src/inference/engine/`, `src/inference/backend/dml/`
   - Input: `src/input/`, `src/input/makcu/`, `src/input/platform/`
 
 Unit tests are also a good "living spec" for behavioral contracts:

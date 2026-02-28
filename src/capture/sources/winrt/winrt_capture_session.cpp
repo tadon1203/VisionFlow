@@ -13,6 +13,8 @@
 #include <windows.graphics.directx.direct3d11.interop.h>
 #include <winrt/base.h>
 
+#include "VisionFlow/capture/capture_error.hpp"
+
 namespace vf {
 
 namespace {

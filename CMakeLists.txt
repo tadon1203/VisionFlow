@@ -33,13 +33,6 @@ target_include_directories(vf_public_headers
         "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>"
 )
 
-add_library(vf_private_headers INTERFACE)
-target_include_directories(vf_private_headers
-    INTERFACE
-        "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>"
-        "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party>"
-)
-
 if (WIN32)
     add_library(vf_win32_definitions INTERFACE)
     target_compile_definitions(vf_win32_definitions
@@ -50,11 +43,15 @@ if (WIN32)
 endif()
 
 function(vf_apply_target_defaults targetName)
+    target_include_directories(${targetName}
+        PRIVATE
+            "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>"
+            "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party>"
+    )
+
     target_link_libraries(${targetName}
         PUBLIC
             vf_public_headers
-        PRIVATE
-            vf_private_headers
     )
 
     if (TARGET vf_win32_definitions)
@@ -80,7 +77,7 @@ target_link_libraries(vf_core
 )
 
 add_library(vf_platform_winrt STATIC
-    src/platform/winrt/platform_context_winrt.cpp
+    src/core/platform/winrt/platform_context_winrt.cpp
 )
 vf_apply_target_defaults(vf_platform_winrt)
 target_link_libraries(vf_platform_winrt
@@ -124,19 +121,19 @@ target_link_libraries(vf_capture
 add_library(vf_inference STATIC
     src/inference/inference_error.cpp
     src/inference/engine/debug_inference_processor.cpp
+    src/inference/engine/inference_postprocessor.cpp
     src/inference/engine/inference_result_store.cpp
-    src/inference/engine/onnx_dml_inference_processor.cpp
     src/inference/engine/stub_inference_processor.cpp
-    src/inference/platform/dml/dml_image_processor.cpp
-    src/inference/platform/dml/dml_image_processor_interop.cpp
-    src/inference/platform/dml/dml_image_processor_preprocess.cpp
-    src/inference/platform/dml/onnx_dml_session.cpp
-    src/inference/platform/dml/onnx_dml_session_stub.cpp
+    src/inference/backend/dml/dml_image_processor.cpp
+    src/inference/backend/dml/dml_image_processor_interop.cpp
+    src/inference/backend/dml/dml_image_processor_preprocess.cpp
+    src/inference/backend/dml/onnx_dml_session.cpp
+    src/inference/backend/dml/onnx_dml_session_stub.cpp
 )
 if (WIN32)
     target_sources(vf_inference
         PRIVATE
-            src/inference/api/winrt_inference_factory.cpp
+            src/inference/composition/winrt_inference_factory.cpp
     )
 endif()
 vf_apply_target_defaults(vf_inference)
@@ -147,7 +144,7 @@ target_link_libraries(vf_inference
 
 add_executable(${PROJECT_NAME}
     src/main.cpp
-    src/core/app_factory.cpp
+    src/core/composition/app_factory.cpp
 )
 vf_apply_target_defaults(${PROJECT_NAME})
 target_link_libraries(${PROJECT_NAME}
@@ -171,6 +168,14 @@ if (WIN32)
 
     vf_configure_onnxruntime_dml(vf_inference)
     vf_configure_onnxruntime_dml(${PROJECT_NAME})
+
+    get_target_property(kVfInferenceHasDml vf_inference VF_ONNXRUNTIME_DML_AVAILABLE)
+    if (kVfInferenceHasDml)
+        target_sources(vf_inference
+            PRIVATE
+                src/inference/engine/onnx_dml_inference_processor.cpp
+        )
+    endif()
 
     target_link_libraries(vf_capture
         PUBLIC

@@ -15,8 +15,9 @@
 #include "VisionFlow/inference/inference_error.hpp"
 #include "VisionFlow/inference/inference_result_store.hpp"
 #include "capture/pipeline/frame_sequencer.hpp"
-#include "inference/platform/dml/dml_image_processor.hpp"
-#include "inference/platform/dml/onnx_dml_session.hpp"
+#include "inference/engine/i_inference_image_processor.hpp"
+#include "inference/engine/i_inference_session.hpp"
+#include "inference/engine/inference_postprocessor.hpp"
 
 namespace vf {
 
@@ -24,11 +25,14 @@ template <typename TFrame> class DmlInferenceWorker {
   public:
     using FaultHandler = std::function<void(std::string_view reason, std::error_code errorCode)>;
 
-    DmlInferenceWorker(FrameSequencer<TFrame>* frameSequencer, OnnxDmlSession* session,
-                       DmlImageProcessor* dmlImageProcessor, InferenceResultStore* resultStore,
+    DmlInferenceWorker(FrameSequencer<TFrame>* frameSequencer, IInferenceSession* session,
+                       IInferenceImageProcessor* dmlImageProcessor,
+                       InferenceResultStore* resultStore,
+                       InferencePostprocessor* inferencePostprocessor,
                        IProfiler* profiler = nullptr, FaultHandler faultHandler = {})
         : frameSequencer(frameSequencer), session(session), dmlImageProcessor(dmlImageProcessor),
-          resultStore(resultStore), profiler(profiler), faultHandler(std::move(faultHandler)) {}
+          resultStore(resultStore), inferencePostprocessor(inferencePostprocessor),
+          profiler(profiler), faultHandler(std::move(faultHandler)) {}
 
     void setFaultHandler(FaultHandler nextFaultHandler) {
         faultHandler = std::move(nextFaultHandler);
@@ -62,7 +66,7 @@ template <typename TFrame> class DmlInferenceWorker {
   private:
     [[nodiscard]] bool hasRuntimeComponents() const {
         return frameSequencer != nullptr && session != nullptr && dmlImageProcessor != nullptr &&
-               resultStore != nullptr;
+               resultStore != nullptr && inferencePostprocessor != nullptr;
     }
 
     [[nodiscard]] static bool hasValidFrame(const TFrame& frame) {
@@ -113,7 +117,7 @@ template <typename TFrame> class DmlInferenceWorker {
             return true;
         }
 
-        const DmlImageProcessor::DispatchResult dispatchResult = collectResult->value();
+        const IInferenceImageProcessor::DispatchResult dispatchResult = collectResult->value();
         const auto inferenceStartedAt = std::chrono::steady_clock::now();
         const auto inferenceResult =
             session->runWithGpuInput(*inFlightFrameTimestamp100ns, dispatchResult.outputResource,
@@ -131,7 +135,23 @@ template <typename TFrame> class DmlInferenceWorker {
             VF_WARN("OnnxDmlInferenceProcessor inference failed: {}",
                     inferenceResult.error().message());
         } else {
-            resultStore->publish(inferenceResult.value());
+            InferenceResult result = std::move(inferenceResult.value());
+            const auto postprocessStartedAt = std::chrono::steady_clock::now();
+            const auto postprocessResult = inferencePostprocessor->process(result);
+            if (profiler != nullptr) {
+                const auto postprocessEndedAt = std::chrono::steady_clock::now();
+                profiler->recordCpuUs(ProfileStage::InferencePostprocess,
+                                      static_cast<std::uint64_t>(
+                                          std::chrono::duration_cast<std::chrono::microseconds>(
+                                              postprocessEndedAt - postprocessStartedAt)
+                                              .count()));
+            }
+            if (!postprocessResult) {
+                reportFault("OnnxDmlInferenceProcessor postprocess failed",
+                            postprocessResult.error());
+                return false;
+            }
+            resultStore->publish(std::move(result));
         }
         inFlightFrameTimestamp100ns.reset();
         return true;
@@ -177,7 +197,7 @@ template <typename TFrame> class DmlInferenceWorker {
             return false;
         }
 
-        if (*enqueueResult == DmlImageProcessor::EnqueueStatus::Submitted) {
+        if (*enqueueResult == IInferenceImageProcessor::EnqueueStatus::Submitted) {
             inFlightFrameTimestamp100ns = frame.info.systemRelativeTime100ns;
         } else if (profiler != nullptr) {
             profiler->recordEvent(ProfileStage::InferenceEnqueueSkipped);
@@ -186,9 +206,10 @@ template <typename TFrame> class DmlInferenceWorker {
     }
 
     FrameSequencer<TFrame>* frameSequencer;
-    OnnxDmlSession* session;
-    DmlImageProcessor* dmlImageProcessor;
+    IInferenceSession* session;
+    IInferenceImageProcessor* dmlImageProcessor;
     InferenceResultStore* resultStore;
+    InferencePostprocessor* inferencePostprocessor;
     IProfiler* profiler;
     FaultHandler faultHandler;
     std::optional<std::int64_t> inFlightFrameTimestamp100ns;

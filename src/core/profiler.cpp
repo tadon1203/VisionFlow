@@ -45,6 +45,8 @@ constexpr std::string_view stageName(ProfileStage stage) {
         return "inference.preprocess";
     case ProfileStage::InferenceRun:
         return "inference.run";
+    case ProfileStage::InferencePostprocess:
+        return "inference.postprocess";
     case ProfileStage::GpuPreprocess:
         return "gpu.preprocess";
     case ProfileStage::Count:
@@ -150,6 +152,7 @@ std::string Profiler::buildReportLine(std::chrono::steady_clock::time_point now,
         ProfileStage::InferenceEnqueueSkipped,
         ProfileStage::InferencePreprocess,
         ProfileStage::InferenceRun,
+        ProfileStage::InferencePostprocess,
         ProfileStage::GpuPreprocess,
     };
 

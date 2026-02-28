@@ -1,4 +1,4 @@
-#include "inference/platform/dml/dml_image_processor_preprocess.hpp"
+#include "inference/backend/dml/dml_image_processor_preprocess.hpp"
 
 #include <array>
 #include <cstddef>
@@ -9,7 +9,7 @@
 
 #include "VisionFlow/core/logger.hpp"
 #include "VisionFlow/inference/inference_error.hpp"
-#include "inference/platform/dml/dx_utils.hpp"
+#include "inference/backend/dml/dx_utils.hpp"
 
 #ifdef _WIN32
 #include <Windows.h>

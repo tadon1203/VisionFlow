@@ -13,7 +13,7 @@
 
 #if defined(_WIN32)
 #include "capture/sources/winrt/capture_source_winrt.hpp"
-#include "inference/api/winrt_inference_factory.hpp"
+#include "inference/composition/winrt_inference_factory.hpp"
 #endif
 
 namespace vf {

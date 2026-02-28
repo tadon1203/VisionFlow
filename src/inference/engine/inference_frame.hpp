@@ -7,7 +7,7 @@
 #include <winrt/base.h>
 #endif
 
-#include "capture/common/capture_frame_info.hpp"
+#include "capture/pipeline/capture_frame_info.hpp"
 
 namespace vf {
 

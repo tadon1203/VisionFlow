@@ -5,10 +5,10 @@ Suggested order for first-time readers:
 
 1. `src/main.cpp` for process startup/shutdown and platform initialization.
 2. `src/core/app.cpp` for the main loop structure and error propagation.
-3. `src/core/app_factory.cpp` for the composition root (wiring capture/inference/input).
+3. `src/core/composition/app_factory.cpp` for the composition root (wiring capture/inference/input).
 4. Domain implementations:
   - Capture: `src/capture/sources/winrt/`
-  - Inference: `src/inference/api/`, `src/inference/engine/`, `src/inference/platform/dml/`
+  - Inference: `src/inference/composition/`, `src/inference/engine/`, `src/inference/backend/dml/`
   - Input: `src/input/`, `src/input/makcu/`, `src/input/platform/`
 
 Behavioral contracts are often easiest to confirm via unit tests:
@@ -81,15 +81,14 @@ main
 - `src/input/`: input domain orchestration and protocol behavior
 - `src/input/platform/`: WinRT-backed serial/device adapters (private boundary)
 - `src/input/makcu/`: Makcu internal state/queue/ack components (private boundary)
-- `src/capture/common/`: capture-internal shared data types (`capture_frame_info`, `inference_result`)
 - `src/capture/`: capture domain shared/abstract components (`capture_error`)
-- `src/capture/pipeline/`: platform-agnostic capture pipeline components (`frame_sequencer`)
-- `src/inference/api/`: inference composition entrypoints for runtime wiring
-- `src/inference/platform/dml/`: DirectML/DX12 backend implementation details
-- `src/inference/engine/`: inference orchestrator/backend implementations (`onnx_dml_inference_processor`, `debug_inference_processor`, `inference_result_store`)
+- `src/capture/pipeline/`: capture shared/pipeline data and components (`capture_frame_info`, `frame_sequencer`)
+- `src/inference/composition/`: inference composition entrypoints for runtime wiring
+- `src/inference/backend/dml/`: DirectML/DX12 backend implementation details
+- `src/inference/engine/`: inference orchestrator/backend implementations (`onnx_dml_inference_processor`, `debug_inference_processor`, `inference_result_store`, `inference_postprocessor`)
 - `src/capture/sources/winrt/`: WinRT capture source and sink boundary
 - `src/capture/sources/stub/`: non-Windows capture stub implementation
-- `src/platform/winrt/`: platform runtime lifecycle
+- `src/core/platform/winrt/`: platform runtime lifecycle
 
 ## Core Components
 
@@ -142,6 +141,8 @@ main
 
 ### AppFactory Branching
 - `AppFactory` is the single composition point for platform-dependent instance selection.
+- Composition roots are placed at the upper directory of each layer (`src/core/composition/`,
+  `src/inference/composition/`) so wiring structure follows dependency direction.
 - Compile-time platform branching (`#if`) is concentrated in composition/factory code.
 - Runtime implementation classes stay platform-specific by file separation (`winrt/` vs `stub/`) rather than inline branching.
 
@@ -183,10 +184,11 @@ main
   - `onnx_dml_session_stub.cpp`
 
 ### Inference Result Path
-1. Inference worker publishes result to `InferenceResultStore`
-2. `App::tickOnce()` consumes one result via `InferenceResultStore::take()`
-3. App applies the result to runtime actions (mouse/output behavior)
-4. Profiler emits periodic aggregates for capture/inference/tick stages when enabled
+1. Inference worker runs postprocess (`decode -> confidence filter -> class filter -> NMS`) on raw output tensors.
+2. Inference worker publishes the postprocessed result to `InferenceResultStore`.
+3. `App::tickOnce()` consumes one result via `InferenceResultStore::take()`.
+4. App applies the result to runtime actions (mouse/output behavior).
+5. Profiler emits periodic aggregates for capture/inference/tick stages when enabled.
 
 ### Move Path
 1. `move(dx, dy)` writes pending command under lock
@@ -224,17 +226,16 @@ main
 - `src/input/*`: input orchestration and protocol implementations
 - `src/input/platform/*`: private WinRT serial/device adapters
 - `src/input/makcu/*`: private Makcu orchestration helpers
-- `src/capture/common/*`: private capture shared data contracts
 - `src/capture/*`: private capture shared/abstract components
-- `src/capture/pipeline/*`: private capture pipeline components
-- `src/inference/platform/dml/*`: private DML backend components
+- `src/capture/pipeline/*`: private capture shared/pipeline components
+- `src/inference/backend/dml/*`: private DML backend components
   - `dml_image_processor` orchestrates preprocessing
   - `dml_image_processor_interop` owns D3D11/D3D12 shared resource/fence interop
   - `dml_image_processor_preprocess` owns compute preprocess pipeline setup/dispatch
 - `src/inference/engine/*`: private debug backend components
 - `src/capture/sources/winrt/*`: private WinRT capture components
 - `src/capture/sources/stub/*`: private capture stubs for unsupported platforms
-- `src/platform/winrt/*`: private platform runtime context
+- `src/core/platform/winrt/*`: private platform runtime context
 - `config/*`: runtime configuration inputs
 
 ## Extension Guidelines (Core)

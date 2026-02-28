@@ -15,13 +15,15 @@
 namespace vf {
 OnnxDmlInferenceProcessor::OnnxDmlInferenceProcessor(
     InferenceConfig config, std::unique_ptr<FrameSequencer<InferenceFrame>> frameSequencer,
-    InferenceResultStore* resultStore, std::unique_ptr<OnnxDmlSession> session,
-    std::unique_ptr<DmlImageProcessor> dmlImageProcessor,
+    InferenceResultStore* resultStore, std::unique_ptr<IInferenceSession> session,
+    std::unique_ptr<IInferenceImageProcessor> dmlImageProcessor,
+    std::unique_ptr<InferencePostprocessor> inferencePostprocessor,
     std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker, IProfiler* profiler)
     : config(std::move(config)), frameSequencer(std::move(frameSequencer)),
       resultStore(resultStore), session(std::move(session)),
-      dmlImageProcessor(std::move(dmlImageProcessor)), inferenceWorker(std::move(inferenceWorker)),
-      profiler(profiler) {
+      dmlImageProcessor(std::move(dmlImageProcessor)),
+      inferencePostprocessor(std::move(inferencePostprocessor)),
+      inferenceWorker(std::move(inferenceWorker)), profiler(profiler) {
     if (this->inferenceWorker != nullptr) {
         this->inferenceWorker->setFaultHandler(
             [this](std::string_view reason, std::error_code errorCode) {
@@ -40,9 +42,6 @@ OnnxDmlInferenceProcessor::~OnnxDmlInferenceProcessor() noexcept {
 }
 
 std::expected<void, std::error_code> OnnxDmlInferenceProcessor::start() {
-#if !defined(_WIN32) || !defined(VF_HAS_ONNXRUNTIME_DML) || !VF_HAS_ONNXRUNTIME_DML
-    return std::unexpected(makeErrorCode(InferenceError::PlatformNotSupported));
-#else
     {
         std::scoped_lock lock(stateMutex);
         if (state == ProcessorState::Running) {
@@ -55,7 +54,8 @@ std::expected<void, std::error_code> OnnxDmlInferenceProcessor::start() {
     }
 
     if (frameSequencer == nullptr || resultStore == nullptr || session == nullptr ||
-        dmlImageProcessor == nullptr || inferenceWorker == nullptr) {
+        dmlImageProcessor == nullptr || inferencePostprocessor == nullptr ||
+        inferenceWorker == nullptr) {
         {
             std::scoped_lock lock(stateMutex);
             state = ProcessorState::Fault;
@@ -77,13 +77,9 @@ std::expected<void, std::error_code> OnnxDmlInferenceProcessor::start() {
 
     VF_INFO("OnnxDmlInferenceProcessor started");
     return {};
-#endif
 }
 
 std::expected<void, std::error_code> OnnxDmlInferenceProcessor::stop() {
-#if !defined(_WIN32) || !defined(VF_HAS_ONNXRUNTIME_DML) || !VF_HAS_ONNXRUNTIME_DML
-    return std::unexpected(makeErrorCode(InferenceError::PlatformNotSupported));
-#else
     {
         std::scoped_lock lock(stateMutex);
         if (state == ProcessorState::Idle) {
@@ -107,7 +103,6 @@ std::expected<void, std::error_code> OnnxDmlInferenceProcessor::stop() {
 
     VF_INFO("OnnxDmlInferenceProcessor stopped");
     return {};
-#endif
 }
 
 std::expected<void, std::error_code> OnnxDmlInferenceProcessor::poll() {
@@ -149,7 +144,6 @@ void OnnxDmlInferenceProcessor::onFrame(ID3D11Texture2D* texture, const CaptureF
 }
 
 void OnnxDmlInferenceProcessor::inferenceLoop(const std::stop_token& stopToken) {
-#if defined(_WIN32) && defined(VF_HAS_ONNXRUNTIME_DML) && VF_HAS_ONNXRUNTIME_DML
     if (inferenceWorker == nullptr) {
         transitionToFault("OnnxDmlInferenceProcessor runtime component is missing",
                           makeErrorCode(InferenceError::InvalidState));
@@ -157,9 +151,6 @@ void OnnxDmlInferenceProcessor::inferenceLoop(const std::stop_token& stopToken) 
     }
 
     inferenceWorker->run(stopToken);
-#else
-    static_cast<void>(stopToken);
-#endif
 }
 
 } // namespace vf

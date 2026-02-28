@@ -2,7 +2,7 @@
 
 #include <d3d11.h>
 
-#include "capture/common/capture_frame_info.hpp"
+#include "capture/pipeline/capture_frame_info.hpp"
 
 namespace vf {
 

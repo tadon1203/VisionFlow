@@ -129,7 +129,9 @@ function(vf_configure_onnxruntime_dml target_name)
     endforeach()
 
     set(kEnabledDefinition "0")
+    set(kHasOnnxRuntimeDml FALSE)
     if (kDetectedConfigs)
+        set(kHasOnnxRuntimeDml TRUE)
         target_include_directories(${target_name} PRIVATE
             "${kOnnxRuntimeIncludeDir}"
             "${kOnnxRuntimeSessionIncludeDir}"
@@ -174,6 +176,9 @@ function(vf_configure_onnxruntime_dml target_name)
                 "ONNX Runtime DML disabled for target=${target_name} in config=${kCandidateConfigs}")
         endif()
     endif()
+
+    set_target_properties(${target_name} PROPERTIES
+        VF_ONNXRUNTIME_DML_AVAILABLE "${kHasOnnxRuntimeDml}")
 
     target_compile_definitions(${target_name} PRIVATE VF_HAS_ONNXRUNTIME_DML=${kEnabledDefinition})
 endfunction()

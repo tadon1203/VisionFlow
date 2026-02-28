@@ -10,8 +10,6 @@
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
 
-#include "VisionFlow/capture/capture_error.hpp"
-
 namespace vf {
 
 class WinrtCaptureSession {

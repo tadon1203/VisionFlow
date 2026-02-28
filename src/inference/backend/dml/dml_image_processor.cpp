@@ -1,4 +1,4 @@
-#include "inference/platform/dml/dml_image_processor.hpp"
+#include "inference/backend/dml/dml_image_processor.hpp"
 
 #include <array>
 #include <cstdint>
@@ -7,10 +7,10 @@
 #include <system_error>
 
 #include "VisionFlow/inference/inference_error.hpp"
-#include "inference/platform/dml/dml_image_processor_interop.hpp"
-#include "inference/platform/dml/dml_image_processor_preprocess.hpp"
-#include "inference/platform/dml/dx_utils.hpp"
-#include "inference/platform/dml/onnx_dml_session.hpp"
+#include "inference/backend/dml/dml_image_processor_interop.hpp"
+#include "inference/backend/dml/dml_image_processor_preprocess.hpp"
+#include "inference/backend/dml/dx_utils.hpp"
+#include "inference/backend/dml/onnx_dml_session.hpp"
 
 #ifdef _WIN32
 #include <Windows.h>
