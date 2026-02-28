@@ -10,7 +10,6 @@
 namespace vf {
 
 class CaptureRuntimeStateMachine;
-class IInferenceProcessor;
 class IWinrtFrameSink;
 class WinrtCaptureSource;
 
@@ -26,11 +25,10 @@ class WinrtCaptureRuntime final : public ICaptureRuntime {
     [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config) override;
     [[nodiscard]] std::expected<void, std::error_code> stop() override;
     [[nodiscard]] std::expected<void, std::error_code> poll() override;
-    [[nodiscard]] std::expected<void, std::error_code>
-    attachInferenceProcessor(IInferenceProcessor& processor);
+    [[nodiscard]] std::expected<void, std::error_code> attachFrameSink(IWinrtFrameSink& frameSink);
 
   private:
-    void attachFrameSink(IWinrtFrameSink* frameSink);
+    void attachFrameSinkInternal(IWinrtFrameSink* frameSink);
 
     IWinrtFrameSink* frameSink = nullptr;
     std::unique_ptr<WinrtCaptureSource> source;

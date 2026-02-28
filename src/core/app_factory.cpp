@@ -8,6 +8,7 @@
 #include "VisionFlow/inference/inference_result_store.hpp"
 #include "VisionFlow/input/mouse_controller_factory.hpp"
 #include "capture/runtime/capture_runtime_winrt.hpp"
+#include "capture/sources/winrt/winrt_frame_sink.hpp"
 #include "core/profiler.hpp"
 #include "inference/api/winrt_inference_factory.hpp"
 
@@ -40,7 +41,14 @@ AppComposition createAppComposition(const VisionFlowConfig& config) {
     }
 
     std::unique_ptr<IInferenceProcessor> inferenceProcessor = std::move(processorResult.value());
-    const auto attachResult = captureRuntime->attachInferenceProcessor(*inferenceProcessor);
+
+    auto* frameSink = dynamic_cast<IWinrtFrameSink*>(inferenceProcessor.get());
+    if (frameSink == nullptr) {
+        VF_ERROR("Failed to attach inference processor: missing IWinrtFrameSink");
+        return {};
+    }
+
+    const auto attachResult = captureRuntime->attachFrameSink(*frameSink);
     if (!attachResult) {
         VF_ERROR("Failed to attach inference processor: {}", attachResult.error().message());
         return {};

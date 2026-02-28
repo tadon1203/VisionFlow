@@ -52,7 +52,7 @@ class Profiler final : public IProfiler {
     std::array<StageCounters, kStageCount> stageCounters{};
     std::array<EventCounters, kStageCount> eventCounters{};
     std::chrono::milliseconds reportInterval{1000};
-    std::chrono::steady_clock::time_point lastReportAt{};
+    std::chrono::steady_clock::time_point lastReportAt;
     bool hasLastReportAt = false;
     ReportSink reportSink;
 };

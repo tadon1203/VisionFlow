@@ -250,7 +250,13 @@ class DmlImageProcessor::Impl {
 DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session, IProfiler* profiler)
     : impl(std::make_unique<Impl>(session, profiler)) {}
 
-DmlImageProcessor::~DmlImageProcessor() { impl->shutdown(); }
+DmlImageProcessor::~DmlImageProcessor() noexcept {
+    try {
+        impl->shutdown();
+    } catch (...) {
+        VF_ERROR("DmlImageProcessor shutdown during destruction failed with exception");
+    }
+}
 
 std::expected<DmlImageProcessor::InitializeResult, std::error_code>
 DmlImageProcessor::initialize(ID3D11Texture2D* sourceTexture) {
@@ -282,7 +288,7 @@ class DmlImageProcessor::Impl {
 DmlImageProcessor::DmlImageProcessor(OnnxDmlSession& session, IProfiler* profiler)
     : impl(std::make_unique<Impl>(session, profiler)) {}
 
-DmlImageProcessor::~DmlImageProcessor() = default;
+DmlImageProcessor::~DmlImageProcessor() noexcept = default;
 
 std::expected<DmlImageProcessor::InitializeResult, std::error_code>
 DmlImageProcessor::initialize(void* sourceTexture) {

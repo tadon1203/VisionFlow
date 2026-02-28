@@ -27,7 +27,7 @@ class MakcuMouseController final : public IMouseController {
     MakcuMouseController(MakcuMouseController&&) = delete;
     MakcuMouseController& operator=(const MakcuMouseController&) = delete;
     MakcuMouseController& operator=(MakcuMouseController&&) = delete;
-    ~MakcuMouseController() override;
+    ~MakcuMouseController() noexcept override;
 
     [[nodiscard]] std::expected<void, std::error_code> connect() override;
     [[nodiscard]] std::expected<void, std::error_code> disconnect() override;

@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -50,8 +51,8 @@ class MockDeviceScanner : public IDeviceScanner {
 
 class FakeSerialPort : public ISerialPort {
   public:
-    [[nodiscard]] std::expected<void, std::error_code> open(const std::string&,
-                                                            std::uint32_t) override {
+    [[nodiscard]] std::expected<void, std::error_code> open(const std::string& /*portName*/,
+                                                            std::uint32_t /*baudRate*/) override {
         opened = true;
         return {};
     }
@@ -61,7 +62,8 @@ class FakeSerialPort : public ISerialPort {
         return {};
     }
 
-    [[nodiscard]] std::expected<void, std::error_code> configure(std::uint32_t) override {
+    [[nodiscard]] std::expected<void, std::error_code>
+    configure(std::uint32_t /*baudRate*/) override {
         return {};
     }
 
@@ -74,7 +76,7 @@ class FakeSerialPort : public ISerialPort {
         }
 
         const std::string command(reinterpret_cast<const char*>(payload.data()), payload.size());
-        if (command.rfind("km.move(", 0) == 0) {
+        if (command.starts_with("km.move(")) {
             {
                 std::scoped_lock lock(moveMutex);
                 moveCommands.push_back(command);
@@ -87,8 +89,9 @@ class FakeSerialPort : public ISerialPort {
                 handlerCopy = handler;
             }
             if (handlerCopy) {
-                static constexpr std::uint8_t ackData[]{'>', '>', '>', ' ', '\r', '\n'};
-                handlerCopy(ackData);
+                static constexpr std::array<std::uint8_t, 6> kAckData{
+                    {'>', '>', '>', ' ', '\r', '\n'}};
+                handlerCopy(kAckData);
             }
         }
 
@@ -101,7 +104,7 @@ class FakeSerialPort : public ISerialPort {
     }
 
     [[nodiscard]] std::expected<std::size_t, std::error_code>
-    readSome(std::span<std::uint8_t>) override {
+    readSome(std::span<std::uint8_t> /*buffer*/) override {
         return static_cast<std::size_t>(0);
     }
 
@@ -129,7 +132,7 @@ class FakeSerialPort : public ISerialPort {
 class StaticDeviceScanner : public IDeviceScanner {
   public:
     [[nodiscard]] std::expected<std::string, std::error_code>
-    findPortByHardwareId(const std::string&) const override {
+    findPortByHardwareId(const std::string& /*hardwareId*/) const override {
         return std::string("COM9");
     }
 };
@@ -202,6 +205,7 @@ TEST(MakcuControllerTest, MoveFailsWhenControllerIsNotReady) {
     EXPECT_EQ(result.error(), makeErrorCode(MouseError::NotConnected));
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST(MakcuControllerTest, ReconnectsAfterMoveWriteFailure) {
     auto serial = std::make_unique<testing::StrictMock<MockSerialPort>>();
     auto scanner = std::make_unique<testing::StrictMock<MockDeviceScanner>>();
@@ -242,8 +246,9 @@ TEST(MakcuControllerTest, ReconnectsAfterMoveWriteFailure) {
             }
 
             if (moveWriteCount > 0 && receivedHandler) {
-                static constexpr std::uint8_t ackData[]{'>', '>', '>', ' ', '\r', '\n'};
-                receivedHandler(ackData);
+                static constexpr std::array<std::uint8_t, 6> kAckData{
+                    {'>', '>', '>', ' ', '\r', '\n'}};
+                receivedHandler(kAckData);
             }
             return std::expected<void, std::error_code>{};
         });
@@ -324,6 +329,7 @@ TEST(MakcuControllerTest, AccumulatesFractionalMoveInputsIntoIntegerSend) {
     EXPECT_EQ(commands.front(), "km.move(1,1)\r\n");
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST(MakcuControllerTest, ClampsMoveCommandAndCarriesOverflowAcrossSends) {
     auto serial = std::make_unique<FakeSerialPort>();
     auto* serialPtr = serial.get();
@@ -336,9 +342,9 @@ TEST(MakcuControllerTest, ClampsMoveCommandAndCarriesOverflowAcrossSends) {
 
     const auto commands = serialPtr->snapshotMoveCommands();
     ASSERT_GE(commands.size(), 3U);
-    EXPECT_EQ(commands[0], "km.move(127,0)\r\n");
-    EXPECT_EQ(commands[1], "km.move(127,0)\r\n");
-    EXPECT_EQ(commands[2], "km.move(46,0)\r\n");
+    EXPECT_EQ(commands.at(0), "km.move(127,0)\r\n");
+    EXPECT_EQ(commands.at(1), "km.move(127,0)\r\n");
+    EXPECT_EQ(commands.at(2), "km.move(46,0)\r\n");
 
     int summedDx = 0;
     for (const std::string& command : commands) {

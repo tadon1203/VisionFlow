@@ -18,7 +18,7 @@ namespace vf::dx_utils {
 
 template <typename Fn> class ScopeExit {
   public:
-    explicit ScopeExit(Fn&& fn) : fn(std::forward<Fn>(fn)) {}
+    explicit ScopeExit(Fn&& fn) : fn(std::move(fn)) {}
     ScopeExit(const ScopeExit&) = delete;
     ScopeExit(ScopeExit&& other) noexcept : fn(std::move(other.fn)), active(other.active) {
         other.active = false;

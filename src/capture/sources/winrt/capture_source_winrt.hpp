@@ -29,7 +29,7 @@ class WinrtCaptureSource {
     WinrtCaptureSource(WinrtCaptureSource&&) = delete;
     WinrtCaptureSource& operator=(const WinrtCaptureSource&) = delete;
     WinrtCaptureSource& operator=(WinrtCaptureSource&&) = delete;
-    ~WinrtCaptureSource();
+    ~WinrtCaptureSource() noexcept;
 
     void bindFrameSink(IWinrtFrameSink* frameSink);
     [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config);
@@ -52,9 +52,9 @@ class WinrtCaptureSource {
     };
 
     [[nodiscard]] IWinrtFrameSink* trySnapshotRunningSink();
-    [[nodiscard]] std::optional<ArrivedFrame> tryAcquireArrivedFrame(
+    [[nodiscard]] static std::optional<ArrivedFrame> tryAcquireArrivedFrame(
         const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender);
-    void forwardFrameToSink(IWinrtFrameSink& sink, const ArrivedFrame& frame) const;
+    static void forwardFrameToSink(IWinrtFrameSink& sink, const ArrivedFrame& frame);
     void markFault(const std::error_code& error);
 
     void onFrameArrived(const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender,

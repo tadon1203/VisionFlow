@@ -67,12 +67,12 @@ void Profiler::recordGpuUs(ProfileStage stage, std::uint64_t microseconds) {
 }
 
 void Profiler::recordEvent(ProfileStage stage, std::uint64_t count) {
-    const std::size_t index = static_cast<std::size_t>(stage);
+    const auto index = static_cast<std::size_t>(stage);
     if (index >= kStageCount) {
         return;
     }
 
-    eventCounters[index].count.fetch_add(count, std::memory_order_relaxed);
+    eventCounters.at(index).count.fetch_add(count, std::memory_order_relaxed);
 }
 
 void Profiler::maybeReport(std::chrono::steady_clock::time_point now) {
@@ -112,12 +112,12 @@ void Profiler::flushReport(std::chrono::steady_clock::time_point now) {
 }
 
 void Profiler::record(ProfileStage stage, std::uint64_t microseconds) {
-    const std::size_t index = static_cast<std::size_t>(stage);
+    const auto index = static_cast<std::size_t>(stage);
     if (index >= kStageCount) {
         return;
     }
 
-    StageCounters& counters = stageCounters[index];
+    StageCounters& counters = stageCounters.at(index);
     counters.count.fetch_add(1, std::memory_order_relaxed);
     counters.sumUs.fetch_add(microseconds, std::memory_order_relaxed);
 
@@ -181,8 +181,8 @@ std::string Profiler::buildReportLine(std::chrono::steady_clock::time_point now,
 }
 
 Profiler::StageSnapshot Profiler::snapshotAndReset(ProfileStage stage) {
-    const std::size_t index = static_cast<std::size_t>(stage);
-    StageCounters& counters = stageCounters[index];
+    const auto index = static_cast<std::size_t>(stage);
+    StageCounters& counters = stageCounters.at(index);
 
     StageSnapshot snapshot;
     snapshot.count = counters.count.exchange(0, std::memory_order_relaxed);
@@ -192,8 +192,8 @@ Profiler::StageSnapshot Profiler::snapshotAndReset(ProfileStage stage) {
 }
 
 std::uint64_t Profiler::snapshotEventsAndReset(ProfileStage stage) {
-    const std::size_t index = static_cast<std::size_t>(stage);
-    return eventCounters[index].count.exchange(0, std::memory_order_relaxed);
+    const auto index = static_cast<std::size_t>(stage);
+    return eventCounters.at(index).count.exchange(0, std::memory_order_relaxed);
 }
 
 } // namespace vf

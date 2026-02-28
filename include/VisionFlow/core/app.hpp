@@ -25,6 +25,10 @@ class App {
         std::unique_ptr<IInferenceProcessor> inferenceProcessor,
         std::unique_ptr<InferenceResultStore> resultStore, std::unique_ptr<IProfiler> profiler);
     ~App();
+    App(const App&) = delete;
+    App& operator=(const App&) = delete;
+    App(App&&) = delete;
+    App& operator=(App&&) = delete;
 
     [[nodiscard]] std::expected<void, std::error_code> run();
 
@@ -42,7 +46,7 @@ class App {
     [[nodiscard]] std::expected<void, std::error_code> tickLoop();
     void shutdown();
     [[nodiscard]] std::expected<void, std::error_code> tickOnce();
-    [[nodiscard]] std::expected<void, std::error_code>
+    [[nodiscard]] static std::expected<void, std::error_code>
     applyInferenceToMouse(const InferenceResult& result);
 };
 

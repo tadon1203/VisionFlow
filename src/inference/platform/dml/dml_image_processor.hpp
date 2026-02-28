@@ -51,7 +51,7 @@ class DmlImageProcessor {
     DmlImageProcessor(DmlImageProcessor&&) = delete;
     DmlImageProcessor& operator=(const DmlImageProcessor&) = delete;
     DmlImageProcessor& operator=(DmlImageProcessor&&) = delete;
-    ~DmlImageProcessor();
+    ~DmlImageProcessor() noexcept;
 
 #ifdef _WIN32
     [[nodiscard]] std::expected<InitializeResult, std::error_code>

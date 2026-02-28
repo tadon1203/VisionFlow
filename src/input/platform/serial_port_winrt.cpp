@@ -245,7 +245,7 @@ WinrtSerialPort::readSome(std::span<std::uint8_t> buffer) {
             std::min(bytesReceived, static_cast<std::uint32_t>(buffer.size()));
         const std::uint32_t bytesRead = dataReader.LoadAsync(bytesToRead).get();
         for (std::uint32_t i = 0; i < bytesRead; ++i) {
-            buffer[i] = dataReader.ReadByte();
+            *(buffer.data() + i) = dataReader.ReadByte();
         }
         return static_cast<std::size_t>(bytesRead);
     } catch (const winrt::hresult_error&) {
