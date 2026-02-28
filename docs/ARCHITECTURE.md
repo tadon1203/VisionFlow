@@ -76,6 +76,7 @@ main
 ## Core Layers
 - `include/`: public contracts and interface boundaries
 - `src/core/`: application lifecycle and logging
+- `src/core/config/`: config parsing/validation and config error mapping
 - `src/core/profiler.*`: runtime CPU/GPU stage profiler implementation
 - `include/VisionFlow/capture/`: public capture contracts
 - `src/input/`: input domain orchestration and protocol behavior
@@ -223,6 +224,7 @@ main
 - `include/VisionFlow/capture/*`: public capture contracts
 - `include/VisionFlow/input/*`: public input contracts and composition entrypoints
 - `src/core/*`: app lifecycle and logging implementations
+- `src/core/config/*`: private config parsing/validation implementations
 - `src/input/*`: input orchestration and protocol implementations
 - `src/input/platform/*`: private WinRT serial/device adapters
 - `src/input/makcu/*`: private Makcu orchestration helpers

@@ -29,7 +29,9 @@ createWinrtInferenceProcessor(const InferenceConfig& inferenceConfig,
         auto sequencer = std::make_unique<FrameSequencer<InferenceFrame>>();
         auto dmlSession = std::make_unique<OnnxDmlSession>(inferenceConfig.modelPath);
         auto imageProcessor = std::make_unique<DmlImageProcessor>(*dmlSession, profiler);
-        auto postprocessor = std::make_unique<InferencePostprocessor>();
+        InferencePostprocessor::Settings postprocessorSettings;
+        postprocessorSettings.confidenceThreshold = inferenceConfig.confidenceThreshold;
+        auto postprocessor = std::make_unique<InferencePostprocessor>(postprocessorSettings);
         auto worker = std::make_unique<DmlInferenceWorker<InferenceFrame>>(
             sequencer.get(), dmlSession.get(), imageProcessor.get(), &resultStore,
             postprocessor.get(), profiler);

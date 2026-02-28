@@ -20,6 +20,7 @@ struct CaptureConfig {
 
 struct InferenceConfig {
     std::string modelPath{"model.onnx"};
+    float confidenceThreshold{0.25F};
 };
 
 struct ProfilerConfig {

@@ -57,7 +57,8 @@ Minimal example:
     "preferredDisplayIndex": 0
   },
   "inference": {
-    "modelPath": "model.onnx"
+    "modelPath": "model.onnx",
+    "confidenceThreshold": 0.25
   }
 }
 ```

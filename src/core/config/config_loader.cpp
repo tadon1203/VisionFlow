@@ -9,7 +9,7 @@
 
 #include "VisionFlow/core/config_error.hpp"
 #include "VisionFlow/core/logger.hpp"
-#include "core/config_json.hpp"
+#include "core/config/config_json.hpp"
 
 namespace vf {
 
