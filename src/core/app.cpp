@@ -13,7 +13,9 @@
 #include "VisionFlow/core/logger.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
 #include "VisionFlow/inference/inference_result_store.hpp"
+#include "VisionFlow/input/i_aim_activation_input.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
+#include "core/aim/aim_controller.hpp"
 #include "core/expected_utils.hpp"
 
 namespace vf {
@@ -34,11 +36,15 @@ logErrorAndPropagate(std::string_view context, const std::error_code& error) {
 } // namespace
 
 App::App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
-         CaptureConfig captureConfig, std::unique_ptr<ICaptureSource> captureSource,
+         CaptureConfig captureConfig, const AimConfig& aimConfig,
+         std::unique_ptr<ICaptureSource> captureSource,
          std::unique_ptr<IInferenceProcessor> inferenceProcessor,
-         std::unique_ptr<InferenceResultStore> resultStore, std::unique_ptr<IProfiler> profiler)
-    : appConfig(appConfig), captureConfig(captureConfig),
-      mouseController(std::move(mouseController)), captureSource(std::move(captureSource)),
+         std::unique_ptr<InferenceResultStore> resultStore,
+         std::unique_ptr<IAimActivationInput> aimActivationInput,
+         std::unique_ptr<IProfiler> profiler)
+    : appConfig(appConfig), captureConfig(captureConfig), aimConfig(aimConfig),
+      mouseController(std::move(mouseController)),
+      aimActivationInput(std::move(aimActivationInput)), captureSource(std::move(captureSource)),
       inferenceProcessor(std::move(inferenceProcessor)), resultStore(std::move(resultStore)),
       profiler(std::move(profiler)) {}
 
@@ -93,6 +99,7 @@ std::expected<void, std::error_code> App::start() {
         return propagateFailure(captureStartResult);
     }
 
+    wasAimActivationPressed = false;
     running = true;
     return {};
 }
@@ -203,8 +210,27 @@ std::expected<void, std::error_code> App::tickOnce() {
 }
 
 std::expected<void, std::error_code> App::applyInferenceToMouse(const InferenceResult& result) {
-    static_cast<void>(result);
-    return {};
+    if (mouseController == nullptr) {
+        return std::unexpected(std::make_error_code(std::errc::invalid_argument));
+    }
+    if (aimActivationInput == nullptr) {
+        return {};
+    }
+
+    const bool isAimActivationPressed = aimActivationInput->isAimActivationPressed();
+    if (isAimActivationPressed && !wasAimActivationPressed) {
+        VF_INFO("Aim activation is now active");
+    }
+    wasAimActivationPressed = isAimActivationPressed;
+    if (!isAimActivationPressed) {
+        return {};
+    }
+
+    const std::optional<AimMove> move = computeAimMove(result, aimConfig);
+    if (!move.has_value()) {
+        return {};
+    }
+    return mouseController->move(move->dx, move->dy);
 }
 
 } // namespace vf

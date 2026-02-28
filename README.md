@@ -57,7 +57,14 @@ Minimal example:
     "preferredDisplayIndex": 0
   },
   "inference": {
-    "modelPath": "model.onnx"
+    "modelPath": "model.onnx",
+    "confidenceThreshold": 0.25
+  },
+  "aim": {
+    "aimStrength": 0.4,
+    "aimMaxStep": 127,
+    "triggerThreshold": 0.5,
+    "activationButtons": [["Mouse:Right"]]
   }
 }
 ```

@@ -76,11 +76,14 @@ main
 ## Core Layers
 - `include/`: public contracts and interface boundaries
 - `src/core/`: application lifecycle and logging
+- `src/core/aim/`: target selection and aim delta computation
+- `src/core/config/`: config parsing/validation and config error mapping
 - `src/core/profiler.*`: runtime CPU/GPU stage profiler implementation
 - `include/VisionFlow/capture/`: public capture contracts
 - `src/input/`: input domain orchestration and protocol behavior
 - `src/input/platform/`: WinRT-backed serial/device adapters (private boundary)
 - `src/input/makcu/`: Makcu internal state/queue/ack components (private boundary)
+- `src/input/platform/winrt_aim_activation_input.*`: aim activation key/button polling
 - `src/capture/`: capture domain shared/abstract components (`capture_error`)
 - `src/capture/pipeline/`: capture shared/pipeline data and components (`capture_frame_info`, `frame_sequencer`)
 - `src/inference/composition/`: inference composition entrypoints for runtime wiring
@@ -188,6 +191,8 @@ main
 2. Inference worker publishes the postprocessed result to `InferenceResultStore`.
 3. `App::tickOnce()` consumes one result via `InferenceResultStore::take()`.
 4. App applies the result to runtime actions (mouse/output behavior).
+4.1. `core/aim` computes center-priority target and per-tick move delta.
+4.2. input layer activation gate must be pressed; otherwise move is skipped.
 5. Profiler emits periodic aggregates for capture/inference/tick stages when enabled.
 
 ### Move Path
@@ -223,6 +228,8 @@ main
 - `include/VisionFlow/capture/*`: public capture contracts
 - `include/VisionFlow/input/*`: public input contracts and composition entrypoints
 - `src/core/*`: app lifecycle and logging implementations
+- `src/core/aim/*`: private aim selection/solve implementations
+- `src/core/config/*`: private config parsing/validation implementations
 - `src/input/*`: input orchestration and protocol implementations
 - `src/input/platform/*`: private WinRT serial/device adapters
 - `src/input/makcu/*`: private Makcu orchestration helpers

@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace vf {
 
@@ -20,6 +21,14 @@ struct CaptureConfig {
 
 struct InferenceConfig {
     std::string modelPath{"model.onnx"};
+    float confidenceThreshold{0.25F};
+};
+
+struct AimConfig {
+    float aimStrength{0.4F};
+    std::int32_t aimMaxStep{127};
+    float triggerThreshold{0.5F};
+    std::vector<std::vector<std::string>> activationButtons{};
 };
 
 struct ProfilerConfig {
@@ -32,6 +41,7 @@ struct VisionFlowConfig {
     MakcuConfig makcu;
     CaptureConfig capture;
     InferenceConfig inference;
+    AimConfig aim;
     ProfilerConfig profiler;
 };
 

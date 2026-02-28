@@ -9,6 +9,7 @@
 #include "VisionFlow/core/i_profiler.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
 #include "VisionFlow/inference/inference_result_store.hpp"
+#include "VisionFlow/input/i_aim_activation_input.hpp"
 #include "VisionFlow/input/i_mouse_controller.hpp"
 
 namespace vf {
@@ -17,9 +18,11 @@ class App {
   public:
     explicit App(const VisionFlowConfig& config);
     App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
-        CaptureConfig captureConfig, std::unique_ptr<ICaptureSource> captureSource,
+        CaptureConfig captureConfig, const AimConfig& aimConfig,
+        std::unique_ptr<ICaptureSource> captureSource,
         std::unique_ptr<IInferenceProcessor> inferenceProcessor,
         std::unique_ptr<InferenceResultStore> resultStore,
+        std::unique_ptr<IAimActivationInput> aimActivationInput = nullptr,
         std::unique_ptr<IProfiler> profiler = nullptr);
     ~App();
     App(const App&) = delete;
@@ -31,9 +34,12 @@ class App {
 
   private:
     bool running = false;
+    bool wasAimActivationPressed = false;
     AppConfig appConfig;
     CaptureConfig captureConfig;
+    AimConfig aimConfig;
     std::unique_ptr<IMouseController> mouseController;
+    std::unique_ptr<IAimActivationInput> aimActivationInput;
     std::unique_ptr<ICaptureSource> captureSource;
     std::unique_ptr<IInferenceProcessor> inferenceProcessor;
     std::unique_ptr<InferenceResultStore> resultStore;
@@ -43,7 +49,7 @@ class App {
     [[nodiscard]] std::expected<void, std::error_code> tickLoop();
     void stop();
     [[nodiscard]] std::expected<void, std::error_code> tickOnce();
-    [[nodiscard]] static std::expected<void, std::error_code>
+    [[nodiscard]] std::expected<void, std::error_code>
     applyInferenceToMouse(const InferenceResult& result);
 };
 
