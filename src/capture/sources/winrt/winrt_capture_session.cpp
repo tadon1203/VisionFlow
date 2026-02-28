@@ -1,11 +1,9 @@
 #include "capture/sources/winrt/winrt_capture_session.hpp"
 
+#include <array>
 #include <expected>
 #include <system_error>
 #include <utility>
-
-#ifdef _WIN32
-#include <array>
 #include <vector>
 
 #include <Windows.Graphics.Capture.Interop.h>
@@ -14,11 +12,9 @@
 #include <dxgi1_2.h>
 #include <windows.graphics.directx.direct3d11.interop.h>
 #include <winrt/base.h>
-#endif
 
 namespace vf {
 
-#ifdef _WIN32
 namespace {
 
 [[nodiscard]] std::expected<winrt::Windows::Graphics::Capture::GraphicsCaptureItem, std::error_code>
@@ -209,13 +205,5 @@ std::expected<void, std::error_code> WinrtCaptureSession::stop() {
 
     return {};
 }
-
-#else
-
-std::expected<void, std::error_code> WinrtCaptureSession::stop() {
-    return std::unexpected(makeErrorCode(CaptureError::PlatformNotSupported));
-}
-
-#endif
 
 } // namespace vf

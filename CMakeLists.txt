@@ -106,9 +106,15 @@ target_link_libraries(vf_input
 
 add_library(vf_capture STATIC
     src/capture/capture_error.cpp
-    src/capture/sources/winrt/capture_source_winrt.cpp
-    src/capture/sources/winrt/winrt_capture_session.cpp
+    src/capture/sources/stub/capture_source_stub.cpp
 )
+if (WIN32)
+    target_sources(vf_capture
+        PRIVATE
+            src/capture/sources/winrt/capture_source_winrt.cpp
+            src/capture/sources/winrt/winrt_capture_session.cpp
+    )
+endif()
 vf_apply_target_defaults(vf_capture)
 target_link_libraries(vf_capture
     PUBLIC
@@ -117,16 +123,22 @@ target_link_libraries(vf_capture
 
 add_library(vf_inference STATIC
     src/inference/inference_error.cpp
-    src/inference/api/winrt_inference_factory.cpp
     src/inference/engine/debug_inference_processor.cpp
     src/inference/engine/inference_result_store.cpp
     src/inference/engine/onnx_dml_inference_processor.cpp
+    src/inference/engine/stub_inference_processor.cpp
     src/inference/platform/dml/dml_image_processor.cpp
     src/inference/platform/dml/dml_image_processor_interop.cpp
     src/inference/platform/dml/dml_image_processor_preprocess.cpp
     src/inference/platform/dml/onnx_dml_session.cpp
     src/inference/platform/dml/onnx_dml_session_stub.cpp
 )
+if (WIN32)
+    target_sources(vf_inference
+        PRIVATE
+            src/inference/api/winrt_inference_factory.cpp
+    )
+endif()
 vf_apply_target_defaults(vf_inference)
 target_link_libraries(vf_inference
     PUBLIC

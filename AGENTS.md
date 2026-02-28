@@ -73,6 +73,10 @@
   - Composition roots (for example factory/bootstrap code) MUST create dependencies in valid order and pass them directly to constructors.
 - **DRY (Don't Repeat Yourself)**: Keep each piece of logic in one authoritative place.
 - **Platform Boundary Isolation**: Isolate platform-specific dependencies behind explicit boundaries. Keep upper layers dependent on abstractions, not direct OS/API calls.
+- **Platform Branching Rule (`#if`)**:
+  - Use compile-time platform branching (`#if`, `#ifdef`) only at instance composition points (composition root / factories) by default.
+  - Do not scatter platform branching across business/runtime implementation classes.
+  - If an exception is unavoidable, keep the branch scope minimal and document why at the branch site.
 - **Abstraction Ownership Rule**: Public interfaces (for example `i_*.hpp`) MUST remain implementation-agnostic. Do not expose platform-specific types, names, or semantics in interface contracts.
 
 ### 2. Resource, Performance, and Constants

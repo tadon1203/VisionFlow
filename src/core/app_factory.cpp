@@ -7,9 +7,14 @@
 #include "VisionFlow/inference/i_inference_processor.hpp"
 #include "VisionFlow/inference/inference_result_store.hpp"
 #include "VisionFlow/input/mouse_controller_factory.hpp"
-#include "capture/sources/winrt/capture_source_winrt.hpp"
+#include "capture/sources/stub/capture_source_stub.hpp"
 #include "core/profiler.hpp"
+#include "inference/engine/stub_inference_processor.hpp"
+
+#if defined(_WIN32)
+#include "capture/sources/winrt/capture_source_winrt.hpp"
 #include "inference/api/winrt_inference_factory.hpp"
+#endif
 
 namespace vf {
 
@@ -31,6 +36,7 @@ AppComposition createAppComposition(const VisionFlowConfig& config) {
     }
 
     auto concreteStore = std::make_unique<InferenceResultStore>();
+#if defined(_WIN32)
     auto processorResult =
         createWinrtInferenceProcessor(config.inference, *concreteStore, profiler.get());
     if (!processorResult) {
@@ -39,11 +45,13 @@ AppComposition createAppComposition(const VisionFlowConfig& config) {
     }
 
     WinrtInferenceBundle inferenceBundle = std::move(processorResult.value());
-    auto captureSource =
+    composition.captureSource =
         std::make_unique<WinrtCaptureSource>(inferenceBundle.frameSink.get(), profiler.get());
-
-    composition.captureSource = std::move(captureSource);
     composition.inferenceProcessor = std::move(inferenceBundle.processor);
+#else
+    composition.captureSource = std::make_unique<StubCaptureSource>();
+    composition.inferenceProcessor = std::make_unique<StubInferenceProcessor>();
+#endif
     composition.resultStore = std::move(concreteStore);
     composition.profiler = std::move(profiler);
     return composition;

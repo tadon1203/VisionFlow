@@ -10,21 +10,18 @@
 #include <system_error>
 #include <utility>
 
+#include <Windows.h>
+#include <windows.graphics.directx.direct3d11.interop.h>
+#include <winrt/base.h>
+
 #include "VisionFlow/capture/capture_error.hpp"
 #include "VisionFlow/core/logger.hpp"
 #include "capture/sources/winrt/winrt_capture_session.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
 #include "core/expected_utils.hpp"
 
-#ifdef _WIN32
-#include <Windows.h>
-#include <windows.graphics.directx.direct3d11.interop.h>
-#include <winrt/base.h>
-#endif
-
 namespace vf {
 
-#ifdef _WIN32
 namespace {
 
 template <typename Fn, typename MarkFaultFn>
@@ -50,16 +47,9 @@ runCaptureStartStep(Fn stepFn, std::string_view stepName, CaptureError exception
 }
 
 } // namespace
-#endif
 
 WinrtCaptureSource::WinrtCaptureSource(IWinrtFrameSink& frameSink, IProfiler* profiler)
-#ifdef _WIN32
-    : frameSink(frameSink), profiler(profiler), session(std::make_unique<WinrtCaptureSession>())
-#else
-    : frameSink(frameSink), profiler(profiler)
-#endif
-{
-}
+    : frameSink(frameSink), profiler(profiler), session(std::make_unique<WinrtCaptureSession>()) {}
 
 WinrtCaptureSource::~WinrtCaptureSource() noexcept {
     try {
@@ -74,10 +64,6 @@ WinrtCaptureSource::~WinrtCaptureSource() noexcept {
 }
 
 std::expected<void, std::error_code> WinrtCaptureSource::start(const CaptureConfig& config) {
-#ifndef _WIN32
-    static_cast<void>(config);
-    return std::unexpected(makeErrorCode(CaptureError::PlatformNotSupported));
-#else
     {
         std::scoped_lock lock(stateMutex);
         if (state == CaptureState::Running) {
@@ -135,13 +121,9 @@ std::expected<void, std::error_code> WinrtCaptureSource::start(const CaptureConf
 
     VF_INFO("WinrtCaptureSource started (display index: {})", config.preferredDisplayIndex);
     return {};
-#endif
 }
 
 std::expected<void, std::error_code> WinrtCaptureSource::stop() {
-#ifndef _WIN32
-    return std::unexpected(makeErrorCode(CaptureError::PlatformNotSupported));
-#else
     {
         std::scoped_lock lock(stateMutex);
         if (state == CaptureState::Idle) {
@@ -174,7 +156,6 @@ std::expected<void, std::error_code> WinrtCaptureSource::stop() {
 
     VF_INFO("WinrtCaptureSource stopped");
     return {};
-#endif
 }
 
 std::expected<void, std::error_code> WinrtCaptureSource::poll() {
@@ -184,8 +165,6 @@ std::expected<void, std::error_code> WinrtCaptureSource::poll() {
         FaultPollErrors{.lastError = lastError,
                         .fallbackError = makeErrorCode(CaptureError::InvalidState)});
 }
-
-#ifdef _WIN32
 
 bool WinrtCaptureSource::isRunning() {
     std::scoped_lock lock(stateMutex);
@@ -291,7 +270,5 @@ void WinrtCaptureSource::onFrameArrived(
         VF_WARN("WinrtCaptureSource frame processing failed with unknown exception");
     }
 }
-
-#endif
 
 } // namespace vf

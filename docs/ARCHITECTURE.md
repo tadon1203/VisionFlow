@@ -14,6 +14,7 @@ Suggested order for first-time readers:
 Behavioral contracts are often easiest to confirm via unit tests:
 - `tests/unit/core/app_test.cpp` (shutdown order, error propagation)
 - `tests/unit/capture/capture_source_winrt_test.cpp` (poll/stop semantics)
+- `tests/unit/capture/capture_source_stub_test.cpp` (stub platform contract)
 - `tests/unit/input/makcu_controller_test.cpp` (reconnect behavior after send failure)
 - `tests/unit/core/config_loader_test.cpp` (default config creation and validation)
 
@@ -55,14 +56,16 @@ main
   -> WinrtPlatformContext (RAII)
   -> App(config)
     -> IInferenceProcessor (interface)
-      -> OnnxDmlInferenceProcessor
+      -> OnnxDmlInferenceProcessor (Windows)
         -> OnnxDmlSession (DirectML + IO Binding)
-      -> InferenceResultStore
+      -> StubInferenceProcessor (non-Windows)
+    -> InferenceResultStore
     -> ICaptureSource (interface)
-      -> WinrtCaptureSource
+      -> WinrtCaptureSource (Windows)
         -> WinrtCaptureSession
         -> IWinrtFrameSink (private src boundary)
           -> OnnxDmlInferenceProcessor
+      -> StubCaptureSource (non-Windows)
     -> createMouseController()
       -> IMouseController (interface)
         -> MakcuMouseController (implementation, `MakcuController` is an alias)
@@ -85,6 +88,7 @@ main
 - `src/inference/platform/dml/`: DirectML/DX12 backend implementation details
 - `src/inference/engine/`: inference orchestrator/backend implementations (`onnx_dml_inference_processor`, `debug_inference_processor`, `inference_result_store`)
 - `src/capture/sources/winrt/`: WinRT capture source and sink boundary
+- `src/capture/sources/stub/`: non-Windows capture stub implementation
 - `src/platform/winrt/`: platform runtime lifecycle
 
 ## Core Components
@@ -135,6 +139,11 @@ main
 - `WinrtCaptureSource` delegates platform session management to `WinrtCaptureSession`
 - `AppFactory` injects private `IWinrtFrameSink` into `WinrtCaptureSource` at construction time;
   capture source remains inference-agnostic
+
+### AppFactory Branching
+- `AppFactory` is the single composition point for platform-dependent instance selection.
+- Compile-time platform branching (`#if`) is concentrated in composition/factory code.
+- Runtime implementation classes stay platform-specific by file separation (`winrt/` vs `stub/`) rather than inline branching.
 
 ## Platform Boundary and Composition
 - `main` owns platform runtime scope and initializes platform context
@@ -224,6 +233,7 @@ main
   - `dml_image_processor_preprocess` owns compute preprocess pipeline setup/dispatch
 - `src/inference/engine/*`: private debug backend components
 - `src/capture/sources/winrt/*`: private WinRT capture components
+- `src/capture/sources/stub/*`: private capture stubs for unsupported platforms
 - `src/platform/winrt/*`: private platform runtime context
 - `config/*`: runtime configuration inputs
 

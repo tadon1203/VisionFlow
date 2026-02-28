@@ -7,17 +7,15 @@
 #include <optional>
 #include <system_error>
 
-#include "VisionFlow/capture/i_capture_source.hpp"
-#include "VisionFlow/core/config.hpp"
-#include "VisionFlow/core/i_profiler.hpp"
-#include "capture/sources/winrt/winrt_frame_sink.hpp"
-
-#ifdef _WIN32
 #include <d3d11.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
-#endif
+
+#include "VisionFlow/capture/i_capture_source.hpp"
+#include "VisionFlow/core/config.hpp"
+#include "VisionFlow/core/i_profiler.hpp"
+#include "capture/sources/winrt/winrt_frame_sink.hpp"
 
 namespace vf {
 
@@ -45,7 +43,6 @@ class WinrtCaptureSource final : public ICaptureSource {
         Fault,
     };
 
-#ifdef _WIN32
     struct ArrivedFrame {
         winrt::com_ptr<ID3D11Texture2D> texture;
         CaptureFrameInfo info;
@@ -59,7 +56,6 @@ class WinrtCaptureSource final : public ICaptureSource {
 
     void onFrameArrived(const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender,
                         const winrt::Windows::Foundation::IInspectable& args);
-#endif
 
     std::mutex stateMutex;
     CaptureState state = CaptureState::Idle;
@@ -67,9 +63,7 @@ class WinrtCaptureSource final : public ICaptureSource {
     std::error_code lastError;
     IProfiler* profiler = nullptr;
 
-#ifdef _WIN32
     std::unique_ptr<WinrtCaptureSession> session;
-#endif
 };
 
 } // namespace vf
