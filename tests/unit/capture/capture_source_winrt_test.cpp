@@ -43,5 +43,13 @@ TEST(WinrtCaptureSourceTest, StartReturnsPlatformNotSupportedOnNonWindowsWithInj
 #endif
 }
 
+TEST(WinrtCaptureSourceTest, PollSucceedsWhenNoFaultIsPresent) {
+    DummySink sink;
+    WinrtCaptureSource source(sink);
+
+    const auto result = source.poll();
+    EXPECT_TRUE(result.has_value());
+}
+
 } // namespace
 } // namespace vf

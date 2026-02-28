@@ -9,7 +9,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "VisionFlow/capture/i_capture_runtime.hpp"
+#include "VisionFlow/capture/i_capture_source.hpp"
 #include "VisionFlow/core/config.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
 #include "VisionFlow/inference/inference_result_store.hpp"
@@ -26,7 +26,7 @@ class MockMouseController : public IMouseController {
     MOCK_METHOD((std::expected<void, std::error_code>), move, (float dx, float dy), (override));
 };
 
-class MockCaptureRuntime : public ICaptureRuntime {
+class MockCaptureSource : public ICaptureSource {
   public:
     MOCK_METHOD((std::expected<void, std::error_code>), start, (const CaptureConfig& config),
                 (override));
@@ -50,7 +50,7 @@ TEST(AppTest, RunReturnsInvalidArgumentWhenControllerIsNull) {
 
 TEST(AppTest, RunPropagatesCaptureStartError) {
     auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
-    auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureSource>>();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
     auto store = std::make_unique<InferenceResultStore>();
 
@@ -70,7 +70,7 @@ TEST(AppTest, RunPropagatesCaptureStartError) {
 
 TEST(AppTest, RunPropagatesInferenceStartError) {
     auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
-    auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureSource>>();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
     auto store = std::make_unique<InferenceResultStore>();
 
@@ -86,7 +86,7 @@ TEST(AppTest, RunPropagatesInferenceStartError) {
 
 TEST(AppTest, RunPropagatesCapturePollError) {
     auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
-    auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureSource>>();
     auto* capturePtr = capture.get();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
     auto* inferencePtr = inference.get();
@@ -117,7 +117,7 @@ TEST(AppTest, RunPropagatesCapturePollError) {
 TEST(AppTest, RunReturnsFalseWhenConnectFails) {
     auto mock = std::make_unique<testing::StrictMock<MockMouseController>>();
     auto* mockPtr = mock.get();
-    auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureSource>>();
     auto* capturePtr = capture.get();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
     auto* inferencePtr = inference.get();
@@ -154,7 +154,7 @@ TEST(AppTest, RunReturnsFalseWhenConnectFails) {
 TEST(AppTest, RunRetriesConnectForRecoverableErrorThenFails) {
     auto mock = std::make_unique<testing::StrictMock<MockMouseController>>();
     auto* mockPtr = mock.get();
-    auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureSource>>();
     auto* capturePtr = capture.get();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
     auto* inferencePtr = inference.get();
@@ -195,7 +195,7 @@ TEST(AppTest, RunRetriesConnectForRecoverableErrorThenFails) {
 TEST(AppTest, ShutdownOrderIsCaptureThenInferenceThenMouse) {
     auto mouse = std::make_unique<testing::StrictMock<MockMouseController>>();
     auto* mousePtr = mouse.get();
-    auto capture = std::make_unique<testing::StrictMock<MockCaptureRuntime>>();
+    auto capture = std::make_unique<testing::StrictMock<MockCaptureSource>>();
     auto* capturePtr = capture.get();
     auto inference = std::make_unique<testing::StrictMock<MockInferenceProcessor>>();
     auto* inferencePtr = inference.get();

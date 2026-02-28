@@ -7,13 +7,13 @@ Suggested order for first-time readers:
 2. `src/core/app.cpp` for the main loop structure and error propagation.
 3. `src/core/app_factory.cpp` for the composition root (wiring capture/inference/input).
 4. Domain implementations:
-  - Capture: `src/capture/runtime/` and `src/capture/sources/winrt/`
+  - Capture: `src/capture/sources/winrt/`
   - Inference: `src/inference/api/`, `src/inference/engine/`, `src/inference/platform/dml/`
   - Input: `src/input/`, `src/input/makcu/`, `src/input/platform/`
 
 Behavioral contracts are often easiest to confirm via unit tests:
 - `tests/unit/core/app_test.cpp` (shutdown order, error propagation)
-- `tests/unit/capture/capture_runtime_winrt_test.cpp` (poll/stop semantics)
+- `tests/unit/capture/capture_source_winrt_test.cpp` (poll/stop semantics)
 - `tests/unit/input/makcu_controller_test.cpp` (reconnect behavior after send failure)
 - `tests/unit/core/config_loader_test.cpp` (default config creation and validation)
 
@@ -58,12 +58,11 @@ main
       -> OnnxDmlInferenceProcessor
         -> OnnxDmlSession (DirectML + IO Binding)
       -> InferenceResultStore
-    -> CaptureRuntime (interface)
-      -> WinrtCaptureRuntime (implementation)
-        -> WinrtCaptureSource
-          -> WinrtCaptureSession
-          -> IWinrtFrameSink (private src boundary)
-            -> OnnxDmlInferenceProcessor
+    -> ICaptureSource (interface)
+      -> WinrtCaptureSource
+        -> WinrtCaptureSession
+        -> IWinrtFrameSink (private src boundary)
+          -> OnnxDmlInferenceProcessor
     -> createMouseController()
       -> IMouseController (interface)
         -> MakcuMouseController (implementation, `MakcuController` is an alias)
@@ -86,7 +85,6 @@ main
 - `src/inference/platform/dml/`: DirectML/DX12 backend implementation details
 - `src/inference/engine/`: inference orchestrator/backend implementations (`onnx_dml_inference_processor`, `debug_inference_processor`, `inference_result_store`)
 - `src/capture/sources/winrt/`: WinRT capture source and sink boundary
-- `src/capture/runtime/`: capture runtime composition
 - `src/platform/winrt/`: platform runtime lifecycle
 
 ## Core Components
@@ -98,7 +96,7 @@ main
 
 ### App
 - Owns one `IMouseController`
-- Owns one `ICaptureRuntime`
+- Owns one `ICaptureSource`
 - Owns one `IInferenceProcessor`
 - Owns one `InferenceResultStore`
 - Handles startup/shutdown flow
@@ -135,14 +133,12 @@ main
 - `WinrtCaptureSource` owns high-level capture state transitions and frame delivery to `IWinrtFrameSink`
 - `WinrtCaptureSession` owns WinRT/D3D device setup, frame pool lifecycle, and capture session start/stop
 - `WinrtCaptureSource` delegates platform session management to `WinrtCaptureSession`
-- `WinrtCaptureRuntime` is capture-only and does not own inference lifecycle
-- `AppFactory` injects private `IWinrtFrameSink` into `WinrtCaptureRuntime` at construction time;
-  capture runtime remains inference-agnostic
-- `WinrtCaptureRuntime` validates state transitions through `CaptureRuntimeStateMachine`
+- `AppFactory` injects private `IWinrtFrameSink` into `WinrtCaptureSource` at construction time;
+  capture source remains inference-agnostic
 
 ## Platform Boundary and Composition
 - `main` owns platform runtime scope and initializes platform context
-- `AppFactory` is the composition root for capture runtime, inference processor, and result store
+- `AppFactory` is the composition root for capture source, inference processor, and result store
 - Controller composition still uses `createMouseController()`
 - `MakcuMouseController` depends on abstractions (`ISerialPort`, `IDeviceScanner`)
 - Platform concrete types stay in private `src/` headers and source files
@@ -160,7 +156,7 @@ main
 6. If connect fails, return error immediately; retry policy is handled by `App`
 
 ### Capture Path
-0. App starts inference processor first, then starts capture runtime
+0. App starts inference processor first, then starts capture source
 1. Enumerate display monitors
 2. Select configured display index (fallback to 0 when out of range)
 3. Create `GraphicsCaptureItem` from selected monitor
@@ -228,7 +224,6 @@ main
   - `dml_image_processor_preprocess` owns compute preprocess pipeline setup/dispatch
 - `src/inference/engine/*`: private debug backend components
 - `src/capture/sources/winrt/*`: private WinRT capture components
-- `src/capture/runtime/*`: private runtime composition
 - `src/platform/winrt/*`: private platform runtime context
 - `config/*`: runtime configuration inputs
 

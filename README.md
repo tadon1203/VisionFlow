@@ -14,7 +14,7 @@ If you're new to the repo, this order minimizes context switching:
 3. `src/core/app.cpp` (main loop + shutdown + error propagation)
 4. `src/core/app_factory.cpp` (composition root / wiring)
 5. Domain entrypoints:
-  - Capture: `src/capture/runtime/`, `src/capture/sources/winrt/`
+  - Capture: `src/capture/sources/winrt/`
   - Inference: `src/inference/api/`, `src/inference/engine/`, `src/inference/platform/dml/`
   - Input: `src/input/`, `src/input/makcu/`, `src/input/platform/`
 
@@ -22,7 +22,7 @@ Unit tests are also a good "living spec" for behavioral contracts:
 - `tests/unit/core/app_test.cpp`
 - `tests/unit/core/config_loader_test.cpp`
 - `tests/unit/input/makcu_controller_test.cpp`
-- `tests/unit/capture/capture_runtime_winrt_test.cpp`
+- `tests/unit/capture/capture_source_winrt_test.cpp`
 
 ## Requirements
 - Windows 10 or Windows 11

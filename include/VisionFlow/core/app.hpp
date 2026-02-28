@@ -4,7 +4,7 @@
 #include <memory>
 #include <system_error>
 
-#include "VisionFlow/capture/i_capture_runtime.hpp"
+#include "VisionFlow/capture/i_capture_source.hpp"
 #include "VisionFlow/core/config.hpp"
 #include "VisionFlow/core/i_profiler.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
@@ -17,11 +17,11 @@ class App {
   public:
     explicit App(const VisionFlowConfig& config);
     App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
-        CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
+        CaptureConfig captureConfig, std::unique_ptr<ICaptureSource> captureSource,
         std::unique_ptr<IInferenceProcessor> inferenceProcessor,
         std::unique_ptr<InferenceResultStore> resultStore);
     App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
-        CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
+        CaptureConfig captureConfig, std::unique_ptr<ICaptureSource> captureSource,
         std::unique_ptr<IInferenceProcessor> inferenceProcessor,
         std::unique_ptr<InferenceResultStore> resultStore, std::unique_ptr<IProfiler> profiler);
     ~App();
@@ -37,7 +37,7 @@ class App {
     AppConfig appConfig;
     CaptureConfig captureConfig;
     std::unique_ptr<IMouseController> mouseController;
-    std::unique_ptr<ICaptureRuntime> captureRuntime;
+    std::unique_ptr<ICaptureSource> captureSource;
     std::unique_ptr<IInferenceProcessor> inferenceProcessor;
     std::unique_ptr<InferenceResultStore> resultStore;
     std::unique_ptr<IProfiler> profiler;

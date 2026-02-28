@@ -7,6 +7,7 @@
 #include <optional>
 #include <system_error>
 
+#include "VisionFlow/capture/i_capture_source.hpp"
 #include "VisionFlow/core/config.hpp"
 #include "VisionFlow/core/i_profiler.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
@@ -22,7 +23,7 @@ namespace vf {
 
 class WinrtCaptureSession;
 
-class WinrtCaptureSource {
+class WinrtCaptureSource final : public ICaptureSource {
   public:
     explicit WinrtCaptureSource(IWinrtFrameSink& frameSink, IProfiler* profiler = nullptr);
     WinrtCaptureSource(const WinrtCaptureSource&) = delete;
@@ -31,9 +32,9 @@ class WinrtCaptureSource {
     WinrtCaptureSource& operator=(WinrtCaptureSource&&) = delete;
     ~WinrtCaptureSource() noexcept;
 
-    [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config);
-    [[nodiscard]] std::expected<void, std::error_code> stop();
-    [[nodiscard]] std::expected<void, std::error_code> poll();
+    [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config) override;
+    [[nodiscard]] std::expected<void, std::error_code> stop() override;
+    [[nodiscard]] std::expected<void, std::error_code> poll() override;
 
   private:
     enum class CaptureState : std::uint8_t {
