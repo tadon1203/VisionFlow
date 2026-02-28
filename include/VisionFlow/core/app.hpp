@@ -4,7 +4,7 @@
 #include <memory>
 #include <system_error>
 
-#include "VisionFlow/capture/i_capture_runtime.hpp"
+#include "VisionFlow/capture/i_capture_source.hpp"
 #include "VisionFlow/core/config.hpp"
 #include "VisionFlow/core/i_profiler.hpp"
 #include "VisionFlow/inference/i_inference_processor.hpp"
@@ -17,13 +17,10 @@ class App {
   public:
     explicit App(const VisionFlowConfig& config);
     App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
-        CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
+        CaptureConfig captureConfig, std::unique_ptr<ICaptureSource> captureSource,
         std::unique_ptr<IInferenceProcessor> inferenceProcessor,
-        std::unique_ptr<InferenceResultStore> resultStore);
-    App(std::unique_ptr<IMouseController> mouseController, AppConfig appConfig,
-        CaptureConfig captureConfig, std::unique_ptr<ICaptureRuntime> captureRuntime,
-        std::unique_ptr<IInferenceProcessor> inferenceProcessor,
-        std::unique_ptr<InferenceResultStore> resultStore, std::unique_ptr<IProfiler> profiler);
+        std::unique_ptr<InferenceResultStore> resultStore,
+        std::unique_ptr<IProfiler> profiler = nullptr);
     ~App();
     App(const App&) = delete;
     App& operator=(const App&) = delete;
@@ -37,14 +34,14 @@ class App {
     AppConfig appConfig;
     CaptureConfig captureConfig;
     std::unique_ptr<IMouseController> mouseController;
-    std::unique_ptr<ICaptureRuntime> captureRuntime;
+    std::unique_ptr<ICaptureSource> captureSource;
     std::unique_ptr<IInferenceProcessor> inferenceProcessor;
     std::unique_ptr<InferenceResultStore> resultStore;
     std::unique_ptr<IProfiler> profiler;
 
-    [[nodiscard]] std::expected<void, std::error_code> setup();
+    [[nodiscard]] std::expected<void, std::error_code> start();
     [[nodiscard]] std::expected<void, std::error_code> tickLoop();
-    void shutdown();
+    void stop();
     [[nodiscard]] std::expected<void, std::error_code> tickOnce();
     [[nodiscard]] static std::expected<void, std::error_code>
     applyInferenceToMouse(const InferenceResult& result);

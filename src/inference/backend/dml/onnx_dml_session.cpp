@@ -1,4 +1,4 @@
-#include "inference/platform/dml/onnx_dml_session.hpp"
+#include "inference/backend/dml/onnx_dml_session.hpp"
 
 #include <cstddef>
 #include <exception>
@@ -29,11 +29,19 @@ OnnxDmlSession::createModelMetadata(std::string inputName, std::vector<int64_t> 
         }
     }
 
+    if (inputName != "images") {
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
+    }
+
     if (inputShape.at(0) != 1) {
         return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 
     if (inputShape.at(1) != 3) {
+        return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
+    }
+
+    if (inputShape.at(2) != 640 || inputShape.at(3) != 640) {
         return std::unexpected(makeErrorCode(InferenceError::ModelInvalid));
     }
 

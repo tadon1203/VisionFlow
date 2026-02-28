@@ -22,11 +22,27 @@ TEST(InferenceResultStoreTest, StoresLatestPublishedResult) {
     first.frameTimestamp100ns = 10;
     first.tensors.push_back(
         InferenceTensor{.name = "scores", .shape = {1, 2}, .values = {0.1F, 0.9F}});
+    first.detections.push_back(InferenceDetection{
+        .centerX = 10.0F,
+        .centerY = 20.0F,
+        .width = 30.0F,
+        .height = 40.0F,
+        .score = 0.1F,
+        .classId = 0,
+    });
 
     InferenceResult second;
     second.frameTimestamp100ns = 20;
     second.tensors.push_back(
         InferenceTensor{.name = "scores", .shape = {1, 2}, .values = {0.2F, 0.8F}});
+    second.detections.push_back(InferenceDetection{
+        .centerX = 50.0F,
+        .centerY = 60.0F,
+        .width = 70.0F,
+        .height = 80.0F,
+        .score = 0.8F,
+        .classId = 0,
+    });
 
     store.publish(std::move(first));
     store.publish(std::move(second));
@@ -41,6 +57,14 @@ TEST(InferenceResultStoreTest, StoresLatestPublishedResult) {
     ASSERT_EQ(tensor.values.size(), 2U);
     EXPECT_FLOAT_EQ(tensor.values.at(0), 0.2F);
     EXPECT_FLOAT_EQ(tensor.values.at(1), 0.8F);
+    ASSERT_EQ(storedResult.detections.size(), 1U);
+    const InferenceDetection& detection = storedResult.detections.at(0);
+    EXPECT_FLOAT_EQ(detection.centerX, 50.0F);
+    EXPECT_FLOAT_EQ(detection.centerY, 60.0F);
+    EXPECT_FLOAT_EQ(detection.width, 70.0F);
+    EXPECT_FLOAT_EQ(detection.height, 80.0F);
+    EXPECT_FLOAT_EQ(detection.score, 0.8F);
+    EXPECT_EQ(detection.classId, 0);
 
     const std::optional<InferenceResult> secondTake = store.take();
     EXPECT_FALSE(secondTake.has_value());

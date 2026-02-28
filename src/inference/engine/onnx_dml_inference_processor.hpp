@@ -16,21 +16,22 @@
 #include "VisionFlow/inference/inference_result_store.hpp"
 #include "capture/pipeline/frame_sequencer.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
-#include "inference/common/inference_frame.hpp"
 #include "inference/engine/dml_inference_worker.hpp"
-#include "inference/platform/dml/dml_image_processor.hpp"
+#include "inference/engine/i_inference_image_processor.hpp"
+#include "inference/engine/i_inference_session.hpp"
+#include "inference/engine/inference_frame.hpp"
+#include "inference/engine/inference_postprocessor.hpp"
 
 namespace vf {
-
-class OnnxDmlSession;
 
 class OnnxDmlInferenceProcessor final : public IInferenceProcessor, public IWinrtFrameSink {
   public:
     OnnxDmlInferenceProcessor(InferenceConfig config,
                               std::unique_ptr<FrameSequencer<InferenceFrame>> frameSequencer,
                               InferenceResultStore* resultStore,
-                              std::unique_ptr<OnnxDmlSession> session,
-                              std::unique_ptr<DmlImageProcessor> dmlImageProcessor,
+                              std::unique_ptr<IInferenceSession> session,
+                              std::unique_ptr<IInferenceImageProcessor> dmlImageProcessor,
+                              std::unique_ptr<InferencePostprocessor> inferencePostprocessor,
                               std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker,
                               IProfiler* profiler = nullptr);
     OnnxDmlInferenceProcessor(const OnnxDmlInferenceProcessor&) = delete;
@@ -66,8 +67,9 @@ class OnnxDmlInferenceProcessor final : public IInferenceProcessor, public IWinr
     std::atomic<std::uint64_t> frameSequence{0};
 
     InferenceResultStore* resultStore = nullptr;
-    std::unique_ptr<OnnxDmlSession> session;
-    std::unique_ptr<DmlImageProcessor> dmlImageProcessor;
+    std::unique_ptr<IInferenceSession> session;
+    std::unique_ptr<IInferenceImageProcessor> dmlImageProcessor;
+    std::unique_ptr<InferencePostprocessor> inferencePostprocessor;
     std::unique_ptr<DmlInferenceWorker<InferenceFrame>> inferenceWorker;
     IProfiler* profiler = nullptr;
     std::jthread workerThread;

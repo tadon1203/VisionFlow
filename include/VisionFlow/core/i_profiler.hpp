@@ -20,6 +20,7 @@ enum class ProfileStage : std::uint8_t {
     InferenceEnqueueSkipped,
     InferencePreprocess,
     InferenceRun,
+    InferencePostprocess,
     GpuPreprocess,
     Count,
 };

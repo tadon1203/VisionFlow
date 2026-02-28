@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include "VisionFlow/capture/capture_error.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
 
 namespace vf {
@@ -19,7 +20,8 @@ class DummySink final : public IWinrtFrameSink {
 };
 
 TEST(WinrtCaptureSourceTest, StopIsIdempotentWhenSourceIsIdle) {
-    WinrtCaptureSource source;
+    DummySink sink;
+    WinrtCaptureSource source(sink);
 
     const auto first = source.stop();
     const auto second = source.stop();
@@ -28,14 +30,25 @@ TEST(WinrtCaptureSourceTest, StopIsIdempotentWhenSourceIsIdle) {
     EXPECT_TRUE(second.has_value());
 }
 
-TEST(WinrtCaptureSourceTest, BindFrameSinkAcceptsNullAndNonNullSink) {
-    WinrtCaptureSource source;
+TEST(WinrtCaptureSourceTest, StartReturnsPlatformNotSupportedOnNonWindowsWithInjectedSink) {
     DummySink sink;
+    WinrtCaptureSource source(sink);
 
-    source.bindFrameSink(&sink);
-    source.bindFrameSink(nullptr);
+#if defined(_WIN32)
+    GTEST_SKIP() << "Non-Windows contract only";
+#else
+    const auto result = source.start(CaptureConfig{});
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(CaptureError::PlatformNotSupported));
+#endif
+}
 
-    SUCCEED();
+TEST(WinrtCaptureSourceTest, PollSucceedsWhenNoFaultIsPresent) {
+    DummySink sink;
+    WinrtCaptureSource source(sink);
+
+    const auto result = source.poll();
+    EXPECT_TRUE(result.has_value());
 }
 
 } // namespace
