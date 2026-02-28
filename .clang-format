@@ -36,3 +36,5 @@ IncludeIsMainSourceRegex: ""
 PointerAlignment: Left
 ColumnLimit: 100
 LineEnding: LF
+InsertNewlineAtEOF: true
+KeepEmptyLinesAtEOF: true
