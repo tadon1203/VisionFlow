@@ -8,7 +8,6 @@
 #include "VisionFlow/inference/inference_result_store.hpp"
 #include "VisionFlow/input/mouse_controller_factory.hpp"
 #include "capture/runtime/capture_runtime_winrt.hpp"
-#include "capture/sources/winrt/winrt_frame_sink.hpp"
 #include "core/profiler.hpp"
 #include "inference/api/winrt_inference_factory.hpp"
 
@@ -31,7 +30,6 @@ AppComposition createAppComposition(const VisionFlowConfig& config) {
         profiler = std::make_unique<Profiler>(config.profiler);
     }
 
-    auto captureRuntime = std::make_unique<WinrtCaptureRuntime>(profiler.get());
     auto concreteStore = std::make_unique<InferenceResultStore>();
     auto processorResult =
         createWinrtInferenceProcessor(config.inference, *concreteStore, profiler.get());
@@ -40,22 +38,12 @@ AppComposition createAppComposition(const VisionFlowConfig& config) {
         return {};
     }
 
-    std::unique_ptr<IInferenceProcessor> inferenceProcessor = std::move(processorResult.value());
-
-    auto* frameSink = dynamic_cast<IWinrtFrameSink*>(inferenceProcessor.get());
-    if (frameSink == nullptr) {
-        VF_ERROR("Failed to attach inference processor: missing IWinrtFrameSink");
-        return {};
-    }
-
-    const auto attachResult = captureRuntime->attachFrameSink(*frameSink);
-    if (!attachResult) {
-        VF_ERROR("Failed to attach inference processor: {}", attachResult.error().message());
-        return {};
-    }
+    WinrtInferenceBundle inferenceBundle = std::move(processorResult.value());
+    auto captureRuntime =
+        std::make_unique<WinrtCaptureRuntime>(inferenceBundle.frameSink.get(), profiler.get());
 
     composition.captureRuntime = std::move(captureRuntime);
-    composition.inferenceProcessor = std::move(inferenceProcessor);
+    composition.inferenceProcessor = std::move(inferenceBundle.processor);
     composition.resultStore = std::move(concreteStore);
     composition.profiler = std::move(profiler);
     return composition;

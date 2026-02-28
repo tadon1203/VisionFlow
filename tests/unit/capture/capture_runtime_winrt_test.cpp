@@ -19,24 +19,22 @@ class DummySink final : public IWinrtFrameSink {
     }
 };
 
-TEST(WinrtCaptureRuntimeTest, StartFailsWithInvalidStateWhenSinkIsNotAttached) {
-    WinrtCaptureRuntime runtime;
+TEST(WinrtCaptureRuntimeTest, StartReturnsPlatformNotSupportedOnNonWindowsWithInjectedSink) {
+    DummySink sink;
+    WinrtCaptureRuntime runtime(sink);
 
+#if defined(_WIN32)
+    GTEST_SKIP() << "Non-Windows contract only";
+#else
     const auto result = runtime.start(CaptureConfig{});
     ASSERT_FALSE(result.has_value());
-    EXPECT_EQ(result.error(), makeErrorCode(CaptureError::InvalidState));
-}
-
-TEST(WinrtCaptureRuntimeTest, AttachFrameSinkSucceedsWhenSinkInterfaceExists) {
-    WinrtCaptureRuntime runtime;
-    DummySink sink;
-
-    const auto result = runtime.attachFrameSink(sink);
-    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(CaptureError::PlatformNotSupported));
+#endif
 }
 
 TEST(WinrtCaptureRuntimeTest, StopIsIdempotentWhenRuntimeIsIdle) {
-    WinrtCaptureRuntime runtime;
+    DummySink sink;
+    WinrtCaptureRuntime runtime(sink);
 
     const auto first = runtime.stop();
     const auto second = runtime.stop();
@@ -46,18 +44,24 @@ TEST(WinrtCaptureRuntimeTest, StopIsIdempotentWhenRuntimeIsIdle) {
 }
 
 TEST(WinrtCaptureRuntimeTest, PollSucceedsWhenNoFaultIsPresent) {
-    WinrtCaptureRuntime runtime;
+    DummySink sink;
+    WinrtCaptureRuntime runtime(sink);
 
     const auto result = runtime.poll();
     EXPECT_TRUE(result.has_value());
 }
 
-TEST(WinrtCaptureRuntimeTest, PollSucceedsAfterRecoverableStartValidationFailure) {
-    WinrtCaptureRuntime runtime;
+TEST(WinrtCaptureRuntimeTest, PollSucceedsAfterStartAttempt) {
+    DummySink sink;
+    WinrtCaptureRuntime runtime(sink);
 
     const auto startResult = runtime.start(CaptureConfig{});
+#if defined(_WIN32)
+    EXPECT_TRUE(startResult.has_value());
+#else
     ASSERT_FALSE(startResult.has_value());
-    EXPECT_EQ(startResult.error(), makeErrorCode(CaptureError::InvalidState));
+    EXPECT_EQ(startResult.error(), makeErrorCode(CaptureError::PlatformNotSupported));
+#endif
 
     const auto pollResult = runtime.poll();
     EXPECT_TRUE(pollResult.has_value());

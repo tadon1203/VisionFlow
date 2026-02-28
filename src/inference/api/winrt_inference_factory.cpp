@@ -16,7 +16,7 @@
 
 namespace vf {
 
-std::expected<std::unique_ptr<IInferenceProcessor>, std::error_code>
+std::expected<WinrtInferenceBundle, std::error_code>
 createWinrtInferenceProcessor(const InferenceConfig& inferenceConfig,
                               InferenceResultStore& resultStore, IProfiler* profiler) {
 #if defined(_WIN32) && defined(VF_HAS_ONNXRUNTIME_DML) && VF_HAS_ONNXRUNTIME_DML
@@ -27,21 +27,28 @@ createWinrtInferenceProcessor(const InferenceConfig& inferenceConfig,
         auto worker = std::make_unique<DmlInferenceWorker<InferenceFrame>>(
             sequencer.get(), dmlSession.get(), imageProcessor.get(), &resultStore, profiler);
 
-        std::unique_ptr<IInferenceProcessor> processor =
-            std::make_unique<OnnxDmlInferenceProcessor>(
-                inferenceConfig, std::move(sequencer), &resultStore, std::move(dmlSession),
-                std::move(imageProcessor), std::move(worker), profiler);
+        auto processor = std::make_unique<OnnxDmlInferenceProcessor>(
+            inferenceConfig, std::move(sequencer), &resultStore, std::move(dmlSession),
+            std::move(imageProcessor), std::move(worker), profiler);
+        IWinrtFrameSink& frameSink = *processor;
 
-        return processor;
+        return WinrtInferenceBundle{
+            .processor = std::move(processor),
+            .frameSink = frameSink,
+        };
     } catch (...) {
         return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
     }
 #else
-    std::unique_ptr<IInferenceProcessor> processor = std::make_unique<DebugInferenceProcessor>();
+    auto processor = std::make_unique<DebugInferenceProcessor>();
+    IWinrtFrameSink& frameSink = *processor;
     static_cast<void>(inferenceConfig);
     static_cast<void>(resultStore);
     static_cast<void>(profiler);
-    return std::move(processor);
+    return WinrtInferenceBundle{
+        .processor = std::move(processor),
+        .frameSink = frameSink,
+    };
 #endif
 }
 

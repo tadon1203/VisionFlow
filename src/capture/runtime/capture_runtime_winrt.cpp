@@ -12,8 +12,8 @@
 
 namespace vf {
 
-WinrtCaptureRuntime::WinrtCaptureRuntime(IProfiler* profiler)
-    : source(std::make_unique<WinrtCaptureSource>(profiler)),
+WinrtCaptureRuntime::WinrtCaptureRuntime(IWinrtFrameSink& frameSink, IProfiler* profiler)
+    : source(std::make_unique<WinrtCaptureSource>(frameSink, profiler)),
       runtimeState(std::make_unique<CaptureRuntimeStateMachine>()) {}
 
 WinrtCaptureRuntime::~WinrtCaptureRuntime() = default;
@@ -23,8 +23,7 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::start(const CaptureCon
         return std::unexpected(makeErrorCode(CaptureError::InvalidState));
     }
 
-    const auto beforeStartResult =
-        runtimeState->beforeStart(frameSink != nullptr, source != nullptr);
+    const auto beforeStartResult = runtimeState->beforeStart(source != nullptr);
     if (!beforeStartResult) {
         return propagateFailure(beforeStartResult);
     }
@@ -49,11 +48,6 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::stop() {
     if (!beforeStopResult) {
         return propagateFailure(beforeStopResult);
     }
-
-    if (source != nullptr) {
-        source->bindFrameSink(nullptr);
-    }
-    frameSink = nullptr;
 
     std::error_code stopError;
 
@@ -87,28 +81,6 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::poll() {
     }
 
     return source->poll();
-}
-
-std::expected<void, std::error_code>
-WinrtCaptureRuntime::attachFrameSink(IWinrtFrameSink& nextFrameSink) {
-    if (runtimeState == nullptr) {
-        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
-    }
-
-    const auto beforeAttachResult = runtimeState->beforeAttachSink();
-    if (!beforeAttachResult) {
-        return std::unexpected(beforeAttachResult.error());
-    }
-
-    attachFrameSinkInternal(&nextFrameSink);
-    return {};
-}
-
-void WinrtCaptureRuntime::attachFrameSinkInternal(IWinrtFrameSink* nextFrameSink) {
-    frameSink = nextFrameSink;
-    if (source != nullptr) {
-        source->bindFrameSink(frameSink);
-    }
 }
 
 } // namespace vf

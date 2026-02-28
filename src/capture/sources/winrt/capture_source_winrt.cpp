@@ -52,11 +52,11 @@ runCaptureStartStep(Fn stepFn, std::string_view stepName, CaptureError exception
 } // namespace
 #endif
 
-WinrtCaptureSource::WinrtCaptureSource(IProfiler* profiler)
+WinrtCaptureSource::WinrtCaptureSource(IWinrtFrameSink& frameSink, IProfiler* profiler)
 #ifdef _WIN32
-    : profiler(profiler), session(std::make_unique<WinrtCaptureSession>())
+    : frameSink(frameSink), profiler(profiler), session(std::make_unique<WinrtCaptureSession>())
 #else
-    : profiler(profiler)
+    : frameSink(frameSink), profiler(profiler)
 #endif
 {
 }
@@ -71,11 +71,6 @@ WinrtCaptureSource::~WinrtCaptureSource() noexcept {
     } catch (...) {
         VF_WARN("WinrtCaptureSource stop during destruction failed with exception");
     }
-}
-
-void WinrtCaptureSource::bindFrameSink(IWinrtFrameSink* nextFrameSink) {
-    std::scoped_lock lock(stateMutex);
-    frameSink = nextFrameSink;
 }
 
 std::expected<void, std::error_code> WinrtCaptureSource::start(const CaptureConfig& config) {
@@ -192,12 +187,9 @@ std::expected<void, std::error_code> WinrtCaptureSource::poll() {
 
 #ifdef _WIN32
 
-IWinrtFrameSink* WinrtCaptureSource::trySnapshotRunningSink() {
+bool WinrtCaptureSource::isRunning() {
     std::scoped_lock lock(stateMutex);
-    if (state != CaptureState::Running) {
-        return nullptr;
-    }
-    return frameSink;
+    return state == CaptureState::Running;
 }
 
 std::optional<WinrtCaptureSource::ArrivedFrame> WinrtCaptureSource::tryAcquireArrivedFrame(
@@ -254,8 +246,7 @@ void WinrtCaptureSource::onFrameArrived(
     static_cast<void>(args);
     const auto arrivedStartedAt = std::chrono::steady_clock::now();
 
-    IWinrtFrameSink* frameSinkSnapshot = trySnapshotRunningSink();
-    if (frameSinkSnapshot == nullptr) {
+    if (!isRunning()) {
         return;
     }
 
@@ -274,7 +265,7 @@ void WinrtCaptureSource::onFrameArrived(
         }
 
         const auto forwardStartedAt = std::chrono::steady_clock::now();
-        forwardFrameToSink(*frameSinkSnapshot, arrivedFrame.value());
+        forwardFrameToSink(frameSink, arrivedFrame.value());
         if (profiler != nullptr) {
             const auto forwardEndedAt = std::chrono::steady_clock::now();
             profiler->recordCpuUs(

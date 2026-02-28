@@ -24,14 +24,13 @@ class WinrtCaptureSession;
 
 class WinrtCaptureSource {
   public:
-    explicit WinrtCaptureSource(IProfiler* profiler = nullptr);
+    explicit WinrtCaptureSource(IWinrtFrameSink& frameSink, IProfiler* profiler = nullptr);
     WinrtCaptureSource(const WinrtCaptureSource&) = delete;
     WinrtCaptureSource(WinrtCaptureSource&&) = delete;
     WinrtCaptureSource& operator=(const WinrtCaptureSource&) = delete;
     WinrtCaptureSource& operator=(WinrtCaptureSource&&) = delete;
     ~WinrtCaptureSource() noexcept;
 
-    void bindFrameSink(IWinrtFrameSink* frameSink);
     [[nodiscard]] std::expected<void, std::error_code> start(const CaptureConfig& config);
     [[nodiscard]] std::expected<void, std::error_code> stop();
     [[nodiscard]] std::expected<void, std::error_code> poll();
@@ -51,7 +50,7 @@ class WinrtCaptureSource {
         CaptureFrameInfo info;
     };
 
-    [[nodiscard]] IWinrtFrameSink* trySnapshotRunningSink();
+    [[nodiscard]] bool isRunning();
     [[nodiscard]] static std::optional<ArrivedFrame> tryAcquireArrivedFrame(
         const winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool& sender);
     static void forwardFrameToSink(IWinrtFrameSink& sink, const ArrivedFrame& frame);
@@ -63,7 +62,7 @@ class WinrtCaptureSource {
 
     std::mutex stateMutex;
     CaptureState state = CaptureState::Idle;
-    IWinrtFrameSink* frameSink = nullptr;
+    IWinrtFrameSink& frameSink;
     std::error_code lastError;
     IProfiler* profiler = nullptr;
 

@@ -8,16 +8,7 @@
 
 namespace vf {
 
-std::expected<void, std::error_code> CaptureRuntimeStateMachine::beforeAttachSink() {
-    std::scoped_lock lock(mutex);
-    if (state == RuntimeState::Stopping) {
-        return std::unexpected(makeErrorCode(CaptureError::InvalidState));
-    }
-    return {};
-}
-
-std::expected<void, std::error_code> CaptureRuntimeStateMachine::beforeStart(bool sinkAttached,
-                                                                             bool sourceAvailable) {
+std::expected<void, std::error_code> CaptureRuntimeStateMachine::beforeStart(bool sourceAvailable) {
     std::scoped_lock lock(mutex);
     if (state == RuntimeState::Running) {
         return {};
@@ -25,7 +16,7 @@ std::expected<void, std::error_code> CaptureRuntimeStateMachine::beforeStart(boo
     if (state == RuntimeState::Starting || state == RuntimeState::Stopping) {
         return std::unexpected(makeErrorCode(CaptureError::InvalidState));
     }
-    if (!sinkAttached || !sourceAvailable) {
+    if (!sourceAvailable) {
         return std::unexpected(makeErrorCode(CaptureError::InvalidState));
     }
     state = RuntimeState::Starting;

@@ -9,9 +9,7 @@ namespace vf {
 
 class CaptureRuntimeStateMachine {
   public:
-    [[nodiscard]] std::expected<void, std::error_code> beforeAttachSink();
-    [[nodiscard]] std::expected<void, std::error_code> beforeStart(bool sinkAttached,
-                                                                   bool sourceAvailable);
+    [[nodiscard]] std::expected<void, std::error_code> beforeStart(bool sourceAvailable);
     void onStartSucceeded();
     void onStartFailed();
 
