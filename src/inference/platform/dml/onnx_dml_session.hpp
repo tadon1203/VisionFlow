@@ -18,9 +18,11 @@
 #endif
 
 #ifdef _WIN32
+// NOLINTBEGIN(cppcoreguidelines-virtual-class-destructor)
 struct ID3D12CommandQueue;
 struct ID3D12Resource;
 struct IDMLDevice;
+// NOLINTEND(cppcoreguidelines-virtual-class-destructor)
 #endif
 
 namespace vf {

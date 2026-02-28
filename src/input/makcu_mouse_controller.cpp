@@ -93,11 +93,15 @@ MakcuMouseController::MakcuMouseController(std::unique_ptr<ISerialPort> serialPo
       commandQueue(std::make_unique<MakcuCommandQueue>()),
       ackGate(std::make_unique<MakcuAckGate>()) {}
 
-MakcuMouseController::~MakcuMouseController() {
-    const std::expected<void, std::error_code> result = disconnect();
-    if (!result) {
-        VF_ERROR("MakcuMouseController disconnect during destruction failed: {}",
-                 result.error().message());
+MakcuMouseController::~MakcuMouseController() noexcept {
+    try {
+        const std::expected<void, std::error_code> result = disconnect();
+        if (!result) {
+            VF_ERROR("MakcuMouseController disconnect during destruction failed: {}",
+                     result.error().message());
+        }
+    } catch (...) {
+        VF_ERROR("MakcuMouseController disconnect during destruction failed with exception");
     }
 }
 

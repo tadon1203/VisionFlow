@@ -136,8 +136,8 @@ main
 - `WinrtCaptureSession` owns WinRT/D3D device setup, frame pool lifecycle, and capture session start/stop
 - `WinrtCaptureSource` delegates platform session management to `WinrtCaptureSession`
 - `WinrtCaptureRuntime` is capture-only and does not own inference lifecycle
-- `AppFactory` attaches `IInferenceProcessor` to `WinrtCaptureRuntime`; runtime resolves private
-  `IWinrtFrameSink` internally
+- `AppFactory` attaches private `IWinrtFrameSink` to `WinrtCaptureRuntime` (composition root owns
+  the type check); capture runtime remains inference-agnostic
 - `WinrtCaptureRuntime` validates state transitions through `CaptureRuntimeStateMachine`
 
 ## Platform Boundary and Composition

@@ -5,8 +5,6 @@
 #include <system_error>
 
 #include "VisionFlow/capture/capture_error.hpp"
-#include "VisionFlow/inference/i_inference_processor.hpp"
-#include "VisionFlow/inference/inference_error.hpp"
 #include "capture/runtime/capture_runtime_state.hpp"
 #include "capture/sources/winrt/capture_source_winrt.hpp"
 #include "capture/sources/winrt/winrt_frame_sink.hpp"
@@ -55,6 +53,7 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::stop() {
     if (source != nullptr) {
         source->bindFrameSink(nullptr);
     }
+    frameSink = nullptr;
 
     std::error_code stopError;
 
@@ -91,7 +90,7 @@ std::expected<void, std::error_code> WinrtCaptureRuntime::poll() {
 }
 
 std::expected<void, std::error_code>
-WinrtCaptureRuntime::attachInferenceProcessor(IInferenceProcessor& processor) {
+WinrtCaptureRuntime::attachFrameSink(IWinrtFrameSink& nextFrameSink) {
     if (runtimeState == nullptr) {
         return std::unexpected(makeErrorCode(CaptureError::InvalidState));
     }
@@ -101,16 +100,11 @@ WinrtCaptureRuntime::attachInferenceProcessor(IInferenceProcessor& processor) {
         return std::unexpected(beforeAttachResult.error());
     }
 
-    auto* sink = dynamic_cast<IWinrtFrameSink*>(&processor);
-    if (sink == nullptr) {
-        return std::unexpected(makeErrorCode(InferenceError::InterfaceNotSupported));
-    }
-
-    attachFrameSink(sink);
+    attachFrameSinkInternal(&nextFrameSink);
     return {};
 }
 
-void WinrtCaptureRuntime::attachFrameSink(IWinrtFrameSink* nextFrameSink) {
+void WinrtCaptureRuntime::attachFrameSinkInternal(IWinrtFrameSink* nextFrameSink) {
     frameSink = nextFrameSink;
     if (source != nullptr) {
         source->bindFrameSink(frameSink);

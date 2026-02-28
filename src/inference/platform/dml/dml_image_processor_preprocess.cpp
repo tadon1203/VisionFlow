@@ -139,34 +139,34 @@ class DmlImageProcessorPreprocess::Impl {
         }
 
         std::array<D3D12_DESCRIPTOR_RANGE, 2> descriptorRanges{};
-        descriptorRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-        descriptorRanges[0].NumDescriptors = 1;
-        descriptorRanges[0].BaseShaderRegister = 0;
-        descriptorRanges[0].RegisterSpace = 0;
-        descriptorRanges[0].OffsetInDescriptorsFromTableStart = 0;
+        descriptorRanges.at(0).RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        descriptorRanges.at(0).NumDescriptors = 1;
+        descriptorRanges.at(0).BaseShaderRegister = 0;
+        descriptorRanges.at(0).RegisterSpace = 0;
+        descriptorRanges.at(0).OffsetInDescriptorsFromTableStart = 0;
 
-        descriptorRanges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-        descriptorRanges[1].NumDescriptors = 1;
-        descriptorRanges[1].BaseShaderRegister = 0;
-        descriptorRanges[1].RegisterSpace = 0;
-        descriptorRanges[1].OffsetInDescriptorsFromTableStart = 0;
+        descriptorRanges.at(1).RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+        descriptorRanges.at(1).NumDescriptors = 1;
+        descriptorRanges.at(1).BaseShaderRegister = 0;
+        descriptorRanges.at(1).RegisterSpace = 0;
+        descriptorRanges.at(1).OffsetInDescriptorsFromTableStart = 0;
 
         std::array<D3D12_ROOT_PARAMETER, 3> rootParameters{};
-        rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-        rootParameters[0].Constants.ShaderRegister = 0;
-        rootParameters[0].Constants.RegisterSpace = 0;
-        rootParameters[0].Constants.Num32BitValues = 4;
-        rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        rootParameters.at(0).ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+        rootParameters.at(0).Constants.ShaderRegister = 0;
+        rootParameters.at(0).Constants.RegisterSpace = 0;
+        rootParameters.at(0).Constants.Num32BitValues = 4;
+        rootParameters.at(0).ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-        rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        rootParameters[1].DescriptorTable.NumDescriptorRanges = 1;
-        rootParameters[1].DescriptorTable.pDescriptorRanges = descriptorRanges.data();
-        rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        rootParameters.at(1).ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        rootParameters.at(1).DescriptorTable.NumDescriptorRanges = 1;
+        rootParameters.at(1).DescriptorTable.pDescriptorRanges = descriptorRanges.data();
+        rootParameters.at(1).ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-        rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        rootParameters[2].DescriptorTable.NumDescriptorRanges = 1;
-        rootParameters[2].DescriptorTable.pDescriptorRanges = descriptorRanges.data() + 1;
-        rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        rootParameters.at(2).ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        rootParameters.at(2).DescriptorTable.NumDescriptorRanges = 1;
+        rootParameters.at(2).DescriptorTable.pDescriptorRanges = descriptorRanges.data() + 1;
+        rootParameters.at(2).ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
         D3D12_ROOT_SIGNATURE_DESC rootSigDesc{};
         rootSigDesc.NumParameters = static_cast<UINT>(rootParameters.size());
@@ -361,7 +361,7 @@ class DmlImageProcessorPreprocess::Impl {
         return {};
     }
 
-    std::expected<void, std::error_code> prepareForRecord() {
+    std::expected<void, std::error_code> prepareForRecord() const {
         if (!initialized || commandAllocator == nullptr || commandList == nullptr ||
             pipelineState == nullptr) {
             return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
@@ -444,7 +444,10 @@ class DmlImageProcessorPreprocess::Impl {
         }
 
         void* mapped = nullptr;
-        D3D12_RANGE readRange{0, sizeof(TimestampPair)};
+        D3D12_RANGE readRange{
+            .Begin = 0,
+            .End = sizeof(TimestampPair),
+        };
         const auto mapResult = dx_utils::toError(
             dx_utils::checkD3d(timestampReadbackBuffer->Map(0, &readRange, &mapped),
                                "ID3D12Resource::Map(timestampReadback)"),
@@ -454,7 +457,10 @@ class DmlImageProcessorPreprocess::Impl {
         }
 
         const auto unmap = dx_utils::makeScopeExit([this]() {
-            D3D12_RANGE writtenRange{0, 0};
+            D3D12_RANGE writtenRange{
+                .Begin = 0,
+                .End = 0,
+            };
             timestampReadbackBuffer->Unmap(0, &writtenRange);
         });
 
@@ -473,7 +479,7 @@ class DmlImageProcessorPreprocess::Impl {
         return microseconds;
     }
 
-    std::expected<void, std::error_code> closeAfterRecord() {
+    std::expected<void, std::error_code> closeAfterRecord() const {
         if (!initialized || commandList == nullptr) {
             return std::unexpected(makeErrorCode(InferenceError::InitializationFailed));
         }

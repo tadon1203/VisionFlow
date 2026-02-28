@@ -42,8 +42,9 @@ TEST(ProfilerTest, MaybeReportEmitsAndResetsCounters) {
     profiler.maybeReport(base + std::chrono::milliseconds(1000));
 
     ASSERT_EQ(lines.size(), 1U);
-    EXPECT_NE(lines[0].find("app.tick count=2 avg=15us max=20us"), std::string::npos);
-    EXPECT_NE(lines[0].find("gpu.preprocess count=1 avg=30us max=30us"), std::string::npos);
+    const std::string& report = lines.front();
+    EXPECT_NE(report.find("app.tick count=2 avg=15us max=20us"), std::string::npos);
+    EXPECT_NE(report.find("gpu.preprocess count=1 avg=30us max=30us"), std::string::npos);
 
     profiler.maybeReport(base + std::chrono::milliseconds(2000));
     EXPECT_EQ(lines.size(), 1U);
@@ -61,7 +62,8 @@ TEST(ProfilerTest, FlushReportEmitsCurrentSnapshot) {
     profiler.flushReport(std::chrono::steady_clock::time_point{});
 
     ASSERT_EQ(lines.size(), 1U);
-    EXPECT_NE(lines[0].find("capture.poll count=1 avg=42us max=42us"), std::string::npos);
+    const std::string& report = lines.front();
+    EXPECT_NE(report.find("capture.poll count=1 avg=42us max=42us"), std::string::npos);
 }
 
 TEST(ProfilerTest, FlushReportEmitsEventCounters) {
@@ -77,7 +79,8 @@ TEST(ProfilerTest, FlushReportEmitsEventCounters) {
     profiler.flushReport(std::chrono::steady_clock::time_point{});
 
     ASSERT_EQ(lines.size(), 1U);
-    EXPECT_NE(lines[0].find("inference.collect_miss events=3"), std::string::npos);
+    const std::string& report = lines.front();
+    EXPECT_NE(report.find("inference.collect_miss events=3"), std::string::npos);
 }
 
 } // namespace

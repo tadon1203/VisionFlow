@@ -5,6 +5,7 @@
 #include <utility>
 
 #ifdef _WIN32
+#include <array>
 #include <vector>
 
 #include <Windows.Graphics.Capture.Interop.h>
@@ -46,7 +47,7 @@ createCaptureItemForDisplay(std::uint32_t preferredDisplayIndex) {
 
         winrt::Windows::Graphics::Capture::GraphicsCaptureItem item{nullptr};
         const HRESULT hr = interopFactory->CreateForMonitor(
-            monitors[selectedIndex],
+            monitors.at(selectedIndex),
             winrt::guid_of<winrt::Windows::Graphics::Capture::GraphicsCaptureItem>(),
             winrt::put_abi(item));
         if (FAILED(hr)) {
@@ -86,12 +87,16 @@ createDirect3dDevice(const winrt::com_ptr<ID3D11Device>& d3dDevice) {
 std::expected<void, std::error_code>
 WinrtCaptureSession::initializeDeviceAndItem(std::uint32_t preferredDisplayIndex) {
     constexpr UINT kCreateFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-    const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0};
+    const std::array<D3D_FEATURE_LEVEL, 2> levels{
+        D3D_FEATURE_LEVEL_11_1,
+        D3D_FEATURE_LEVEL_11_0,
+    };
 
-    D3D_FEATURE_LEVEL createdLevel{};
-    HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, kCreateFlags, levels,
-                                   ARRAYSIZE(levels), D3D11_SDK_VERSION, d3dDevice.put(),
-                                   &createdLevel, d3dContext.put());
+    D3D_FEATURE_LEVEL createdLevel = D3D_FEATURE_LEVEL_11_0;
+    HRESULT hr =
+        D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, kCreateFlags, levels.data(),
+                          static_cast<UINT>(levels.size()), D3D11_SDK_VERSION, d3dDevice.put(),
+                          &createdLevel, d3dContext.put());
     if (FAILED(hr)) {
         return std::unexpected(makeErrorCode(CaptureError::DeviceInitializationFailed));
     }

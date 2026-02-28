@@ -32,8 +32,8 @@ MakcuCommandQueue::enqueue(float dx, float dy, std::chrono::milliseconds remaind
             return std::unexpected(makeErrorCode(MouseError::ProtocolError));
         }
 
-        const float accumulatedX = remainder[0] + dx;
-        const float accumulatedY = remainder[1] + dy;
+        const float accumulatedX = remainder.at(0) + dx;
+        const float accumulatedY = remainder.at(1) + dy;
         if (!std::isfinite(accumulatedX) || !std::isfinite(accumulatedY)) {
             return std::unexpected(makeErrorCode(MouseError::ProtocolError));
         }
@@ -50,8 +50,8 @@ MakcuCommandQueue::enqueue(float dx, float dy, std::chrono::milliseconds remaind
         const int intPartX = static_cast<int>(truncatedX);
         const int intPartY = static_cast<int>(truncatedY);
 
-        remainder[0] = accumulatedX - static_cast<float>(intPartX);
-        remainder[1] = accumulatedY - static_cast<float>(intPartY);
+        remainder.at(0) = accumulatedX - static_cast<float>(intPartX);
+        remainder.at(1) = accumulatedY - static_cast<float>(intPartY);
 
         pendingCommand.dx += intPartX;
         pendingCommand.dy += intPartY;

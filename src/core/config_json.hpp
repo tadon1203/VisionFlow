@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <utility>
 
 #include <nlohmann/json.hpp>
 
@@ -88,8 +89,7 @@ inline void from_json(const nlohmann::json& json, CaptureConfig& config) {
     }
 
     const auto signedValue = value.get<long long>();
-    if (signedValue < 0 ||
-        static_cast<unsigned long long>(signedValue) > kMaxPreferredDisplayIndex) {
+    if (signedValue < 0 || std::cmp_greater(signedValue, kMaxPreferredDisplayIndex)) {
         throw nlohmann::json::other_error::create(
             detail::kJsonOtherErrorId, "out of range for key 'preferredDisplayIndex'", &value);
     }

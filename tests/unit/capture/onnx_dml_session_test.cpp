@@ -23,13 +23,17 @@ TEST(OnnxDmlSessionTest, CreatesMetadataForSingleBatchRgbInput) {
         "input", std::vector<int64_t>{1, 3, 640, 640}, std::vector<std::string>{"output"});
 
     ASSERT_TRUE(metadataResult.has_value());
+    constexpr std::size_t kBatch = 1U;
+    constexpr std::size_t kChannels = 3U;
+    constexpr std::size_t kHeight = 640U;
+    constexpr std::size_t kWidth = 640U;
+    constexpr std::size_t kElementCount = kBatch * kChannels * kHeight * kWidth;
     EXPECT_EQ(metadataResult->inputName, "input");
     EXPECT_EQ(metadataResult->inputChannels, 3U);
     EXPECT_EQ(metadataResult->inputHeight, 640U);
     EXPECT_EQ(metadataResult->inputWidth, 640U);
-    EXPECT_EQ(metadataResult->inputElementCount, static_cast<std::size_t>(1 * 3 * 640 * 640));
-    EXPECT_EQ(metadataResult->inputTensorBytes,
-              static_cast<std::size_t>(1 * 3 * 640 * 640 * sizeof(float)));
+    EXPECT_EQ(metadataResult->inputElementCount, kElementCount);
+    EXPECT_EQ(metadataResult->inputTensorBytes, kElementCount * sizeof(float));
 }
 
 } // namespace

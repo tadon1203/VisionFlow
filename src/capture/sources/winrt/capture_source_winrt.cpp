@@ -29,8 +29,8 @@ namespace {
 
 template <typename Fn, typename MarkFaultFn>
 [[nodiscard]] std::expected<void, std::error_code>
-runCaptureStartStep(Fn&& stepFn, std::string_view stepName, CaptureError exceptionError,
-                    MarkFaultFn&& markFault) {
+runCaptureStartStep(Fn stepFn, std::string_view stepName, CaptureError exceptionError,
+                    MarkFaultFn markFault) {
     try {
         const std::expected<void, std::error_code> stepResult = stepFn();
         if (!stepResult) {
@@ -61,10 +61,15 @@ WinrtCaptureSource::WinrtCaptureSource(IProfiler* profiler)
 {
 }
 
-WinrtCaptureSource::~WinrtCaptureSource() {
-    const std::expected<void, std::error_code> result = stop();
-    if (!result) {
-        VF_WARN("WinrtCaptureSource stop during destruction failed: {}", result.error().message());
+WinrtCaptureSource::~WinrtCaptureSource() noexcept {
+    try {
+        const std::expected<void, std::error_code> result = stop();
+        if (!result) {
+            VF_WARN("WinrtCaptureSource stop during destruction failed: {}",
+                    result.error().message());
+        }
+    } catch (...) {
+        VF_WARN("WinrtCaptureSource stop during destruction failed with exception");
     }
 }
 
@@ -233,8 +238,7 @@ std::optional<WinrtCaptureSource::ArrivedFrame> WinrtCaptureSource::tryAcquireAr
     };
 }
 
-void WinrtCaptureSource::forwardFrameToSink(IWinrtFrameSink& sink,
-                                            const ArrivedFrame& frame) const {
+void WinrtCaptureSource::forwardFrameToSink(IWinrtFrameSink& sink, const ArrivedFrame& frame) {
     sink.onFrame(frame.texture.get(), frame.info);
 }
 
