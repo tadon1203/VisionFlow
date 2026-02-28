@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 DEFAULT_IREGEX = r".*\.(c|cc|cpp|cxx|h|hh|hpp|hxx|inc)$"
-DEFAULT_HEADER_FILTER = r"^(?!.*(?:^|/)(third_party|build)/).*$"
+DEFAULT_HEADER_FILTER = r"^(?:.*[\\/])?(?:include|src|tests)[\\/].*$"
 EXCLUDED_TOP_LEVEL = {".git", "build", "third_party"}
 HUNK_PATTERN = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 CONFIG_TO_CONFIGURE_PRESET = {
