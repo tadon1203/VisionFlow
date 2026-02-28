@@ -33,7 +33,7 @@ TEST(ConfigLoaderTest, LoadsValidConfig) {
   "app": { "reconnectRetryMs": 500 },
   "makcu": { "remainderTtlMs": 200 },
   "capture": { "preferredDisplayIndex": 1 },
-  "inference": { "modelPath": "detector.onnx" },
+  "inference": { "modelPath": "detector.onnx", "confidenceThreshold": 0.4 },
   "profiler": { "enabled": true, "reportIntervalMs": 250 }
 })");
 
@@ -43,6 +43,7 @@ TEST(ConfigLoaderTest, LoadsValidConfig) {
     EXPECT_EQ(result->makcu.remainderTtlMs, std::chrono::milliseconds(200));
     EXPECT_EQ(result->capture.preferredDisplayIndex, 1U);
     EXPECT_EQ(result->inference.modelPath, "detector.onnx");
+    EXPECT_FLOAT_EQ(result->inference.confidenceThreshold, 0.4F);
     EXPECT_TRUE(result->profiler.enabled);
     EXPECT_EQ(result->profiler.reportIntervalMs, std::chrono::milliseconds(250));
 
@@ -59,6 +60,7 @@ TEST(ConfigLoaderTest, CreatesDefaultConfigForMissingFile) {
     EXPECT_EQ(result->makcu.remainderTtlMs, std::chrono::milliseconds(200));
     EXPECT_EQ(result->capture.preferredDisplayIndex, 0U);
     EXPECT_EQ(result->inference.modelPath, "model.onnx");
+    EXPECT_FLOAT_EQ(result->inference.confidenceThreshold, 0.25F);
     EXPECT_FALSE(result->profiler.enabled);
     EXPECT_EQ(result->profiler.reportIntervalMs, std::chrono::milliseconds(1000));
     EXPECT_TRUE(std::filesystem::exists(path));
@@ -164,6 +166,7 @@ TEST(ConfigLoaderTest, UsesDefaultCaptureConfigWhenCaptureSectionMissing) {
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result->capture.preferredDisplayIndex, 0U);
     EXPECT_EQ(result->inference.modelPath, "model.onnx");
+    EXPECT_FLOAT_EQ(result->inference.confidenceThreshold, 0.25F);
 
     static_cast<void>(std::filesystem::remove(path));
 }
@@ -174,7 +177,7 @@ TEST(ConfigLoaderTest, ReturnsInvalidTypeForInferenceModelPath) {
               R"({
   "app": { "reconnectRetryMs": 500 },
   "makcu": { "remainderTtlMs": 200 },
-  "inference": { "modelPath": 1234 }
+  "inference": { "modelPath": 1234, "confidenceThreshold": 0.25 }
 })");
 
     const auto result = loadConfig(path);
@@ -190,7 +193,55 @@ TEST(ConfigLoaderTest, ReturnsOutOfRangeForEmptyInferenceModelPath) {
               R"({
   "app": { "reconnectRetryMs": 500 },
   "makcu": { "remainderTtlMs": 200 },
-  "inference": { "modelPath": "" }
+  "inference": { "modelPath": "", "confidenceThreshold": 0.25 }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::OutOfRange));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, UsesDefaultInferenceConfidenceThresholdWhenMissing) {
+    const auto path = makeTempPath("visionflow_config_inference_threshold_missing.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "inference": { "modelPath": "model.onnx" }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_TRUE(result.has_value());
+    EXPECT_FLOAT_EQ(result->inference.confidenceThreshold, 0.25F);
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsInvalidTypeForInferenceConfidenceThreshold) {
+    const auto path = makeTempPath("visionflow_config_inference_threshold_invalid_type.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "inference": { "modelPath": "model.onnx", "confidenceThreshold": "0.25" }
+})");
+
+    const auto result = loadConfig(path);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error(), makeErrorCode(ConfigError::InvalidType));
+
+    static_cast<void>(std::filesystem::remove(path));
+}
+
+TEST(ConfigLoaderTest, ReturnsOutOfRangeForInferenceConfidenceThreshold) {
+    const auto path = makeTempPath("visionflow_config_inference_threshold_out_of_range.json");
+    writeText(path,
+              R"({
+  "app": { "reconnectRetryMs": 500 },
+  "makcu": { "remainderTtlMs": 200 },
+  "inference": { "modelPath": "model.onnx", "confidenceThreshold": 1.1 }
 })");
 
     const auto result = loadConfig(path);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <string>
@@ -97,20 +98,41 @@ inline void from_json(const nlohmann::json& json, CaptureConfig& config) {
 }
 
 inline void to_json(nlohmann::json& json, const InferenceConfig& config) {
-    json = {{"modelPath", config.modelPath}};
+    json = {
+        {"modelPath", config.modelPath},
+        {"confidenceThreshold", config.confidenceThreshold},
+    };
 }
 
 inline void from_json(const nlohmann::json& json, InferenceConfig& config) {
-    const nlohmann::json& value = json.at("modelPath");
-    if (!value.is_string()) {
-        throw nlohmann::json::type_error::create(detail::kJsonTypeErrorId,
-                                                 "expected string for key 'modelPath'", &value);
+    const nlohmann::json& modelPathValue = json.at("modelPath");
+    if (!modelPathValue.is_string()) {
+        throw nlohmann::json::type_error::create(
+            detail::kJsonTypeErrorId, "expected string for key 'modelPath'", &modelPathValue);
     }
 
-    config.modelPath = value.get<std::string>();
+    config.modelPath = modelPathValue.get<std::string>();
     if (config.modelPath.empty()) {
-        throw nlohmann::json::other_error::create(detail::kJsonOtherErrorId,
-                                                  "out of range for key 'modelPath'", &value);
+        throw nlohmann::json::other_error::create(
+            detail::kJsonOtherErrorId, "out of range for key 'modelPath'", &modelPathValue);
+    }
+
+    if (json.contains("confidenceThreshold")) {
+        const nlohmann::json& thresholdValue = json.at("confidenceThreshold");
+        if (!thresholdValue.is_number_float() && !thresholdValue.is_number_integer() &&
+            !thresholdValue.is_number_unsigned()) {
+            throw nlohmann::json::type_error::create(
+                detail::kJsonTypeErrorId, "expected number for key 'confidenceThreshold'",
+                &thresholdValue);
+        }
+
+        config.confidenceThreshold = thresholdValue.get<float>();
+        if (!std::isfinite(config.confidenceThreshold) || config.confidenceThreshold < 0.0F ||
+            config.confidenceThreshold > 1.0F) {
+            throw nlohmann::json::other_error::create(detail::kJsonOtherErrorId,
+                                                      "out of range for key 'confidenceThreshold'",
+                                                      &thresholdValue);
+        }
     }
 }
 

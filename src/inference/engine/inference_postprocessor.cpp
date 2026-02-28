@@ -113,7 +113,7 @@ InferencePostprocessor::process(InferenceResult& result) const {
         return std::unexpected(layoutValidationResult.error());
     }
 
-    const std::size_t anchors = static_cast<std::size_t>(settings.outputTensorShape.at(2));
+    const auto anchors = static_cast<std::size_t>(settings.outputTensorShape.at(2));
     std::vector<CandidateDetection> candidates;
     candidates.reserve(anchors);
 

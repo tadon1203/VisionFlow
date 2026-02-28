@@ -65,8 +65,8 @@ endfunction()
 add_library(vf_core STATIC
     src/core/app.cpp
     src/core/app_error.cpp
-    src/core/config_error.cpp
-    src/core/config_loader.cpp
+    src/core/config/config_error.cpp
+    src/core/config/config_loader.cpp
     src/core/logger.cpp
     src/core/profiler.cpp
 )
